@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastcdp"
+dynamic = ["version"]
+description = "Lightweight Chrome Debug Protocol (CDP) client for python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Jeremy Howard", email = "github@jhoward.fastmail.fm"}]
+keywords = ['nbdev']
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+  "websockets",
+  "fastcore"
+]
+
+[project.urls]
+Repository = "https://github.com/AnswerDotAI/fastcdp"
+Documentation = "https://AnswerDotAI.github.io/fastcdp/"
+
+[project.entry-points.nbdev]
+fastcdp = "fastcdp._modidx:d"
+
+[tool.setuptools.dynamic]
+version = {attr = "fastcdp.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["fastcdp"]
+
+[tool.nbdev]

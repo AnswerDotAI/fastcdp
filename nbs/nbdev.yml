@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "fastcdp"
+  site-url: "https://AnswerDotAI.github.io/fastcdp"
+  description: "Lightweight Chrome Debug Protocol (CDP) client for python"
+  repo-branch: main
+  repo-url: "https://github.com/AnswerDotAI/fastcdp"
