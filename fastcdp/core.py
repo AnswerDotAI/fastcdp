@@ -10,12 +10,14 @@ from fastcore.utils import *
 import websockets, json, platform, asyncio, inspect, base64
 
 # %% ../nbs/00_core.ipynb #930c2391
-if '__file__' not in globals(): __file__ = (Path.cwd().parent)/'fastcdp'/'core.py'
-_path = Path(__file__).parent
+if '__file__' not in globals():
+    _root = Path.cwd()
+    if not (Path.cwd()/'pyproject.toml').exists(): _root = _root.parent
+    __file__ = _root/'fastcdp'/'core.py'
 
+_path = Path(__file__).parent
 _bp = (_path/'browser_protocol.json').read_json()
 _jp = (_path/'js_protocol.json').read_json()
-
 _cdp_domains = _bp['domains'] + _jp['domains']
 
 # %% ../nbs/00_core.ipynb #12182cb2
