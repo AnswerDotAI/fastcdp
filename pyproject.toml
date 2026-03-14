@@ -33,4 +33,7 @@ version = {attr = "fastcdp.__version__"}
 [tool.setuptools.packages.find]
 include = ["fastcdp"]
 
+[tool.setuptools.package-data]
+fastcdp = ["*.json"]
+
 [tool.nbdev]
