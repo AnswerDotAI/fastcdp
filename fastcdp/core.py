@@ -9,7 +9,8 @@ __all__ = ['cdp_search', 'CDP', 'CDPMethod', 'CDPDomain', 'PageDomain', 'Page', 
 from fastcore.utils import *
 import websockets, json, platform, asyncio, inspect, base64
 
-# %% ../nbs/00_core.ipynb #c141286b
+# %% ../nbs/00_core.ipynb #930c2391
+if '__file__' not in globals(): __file__ = (Path.cwd().parent)/'fastcdp'/'core.py'
 _path = Path(__file__).parent
 
 _bp = (_path/'browser_protocol.json').read_json()
