@@ -68,5 +68,6 @@ d = { 'settings': { 'branch': 'main',
                               'fastcdp.core._simplify': ('core.html#_simplify', 'fastcdp/core.py'),
                               'fastcdp.core._upper1': ('core.html#_upper1', 'fastcdp/core.py'),
                               'fastcdp.core.build_ax_tree': ('core.html#build_ax_tree', 'fastcdp/core.py'),
+                              'fastcdp.core.cdp_conninfo': ('core.html#cdp_conninfo', 'fastcdp/core.py'),
                               'fastcdp.core.cdp_search': ('core.html#cdp_search', 'fastcdp/core.py'),
                               'fastcdp.core.cdp_yolo': ('core.html#cdp_yolo', 'fastcdp/core.py')}}}
