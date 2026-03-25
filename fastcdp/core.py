@@ -8,7 +8,7 @@ __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'CDPMethod', 'CDPDomain', 'PageD
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
-import websockets, json, platform, asyncio, inspect, base64
+import websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
 
 # %% ../nbs/00_core.ipynb #930c2391
@@ -62,7 +62,8 @@ class CDP:
     async def connect(cls, p=None, wsconn=None, debug=None):
         if wsconn is None: wsconn = cdp_conninfo()
         self = cls(wsconn, debug=debug)
-        self.ws = await websockets.connect(f'ws://127.0.0.1:{self.wsconn}')
+        url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
+        self.ws = await websockets.connect(url)
         self._reader = asyncio.create_task(self._read_loop())
         self._keep = asyncio.create_task(self._keepalive())
         return self
@@ -110,6 +111,14 @@ class CDP:
     def __getattr__(self, domain):
         if domain.startswith('_'): raise AttributeError()
         return CDPDomain(self, _upper1(domain))
+
+# %% ../nbs/00_core.ipynb #1e09344e
+@patch(cls_method=True)
+async def remote(cls:CDP, port=9222, debug=None):
+    "Connect via Chrome remote debugging HTTP endpoint"
+    async with httpx.AsyncClient() as client:
+        url = (await client.get(f'http://localhost:{port}/json/version')).json()['webSocketDebuggerUrl']
+    return await cls.connect(wsconn=url, debug=debug)
 
 # %% ../nbs/00_core.ipynb #e7db5a91
 @patch(as_prop=True)
@@ -256,11 +265,31 @@ class Page:
 
     def __dir__(self): return self.cdp.__dir__()
 
+# %% ../nbs/00_core.ipynb #bf90b19e
+@patch
+async def active_page(self:CDP):
+    for t in (await self('Target.getTargets')):
+        if t['type'] != 'page': continue
+        sid = await self.attach(t['targetId'])
+        if await self.eval('document.hasFocus()', sid): return t, sid
+        await self.target.detachFromTarget(sessionId=sid)
+
+@patch(cls_method=True)
+async def remote_page(cls:CDP, port=9222, debug=None):
+    "Connect via remote debugging and return Page for the active tab"
+    cdp = await cls.remote(port=port, debug=debug)
+    result = await cdp.active_page()
+    if not result: raise RuntimeError("No focused page found")
+    t, sid = result
+    return Page(cdp, t['targetId'], sid, owned=True)
+
+
 # %% ../nbs/00_core.ipynb #3d0570b5
 @patch
 async def new_page(self:CDP):
     "Create a new tab, return Page"
     t = await self.target.createTarget(url='about:blank')
+    await asyncio.sleep(0.1)
     return await Page.new(t, self)
 
 # %% ../nbs/00_core.ipynb #0bf3d185
@@ -286,7 +315,6 @@ async def wait_ready(self:CDP, sid=None, timeout=10, idle_ms=500):
         await asyncio.wait_for(q_load.get(), timeout=timeout)
         await self.wait_for_ready(sid=sid, timeout=timeout, idle_ms=idle_ms)
 
-# %% ../nbs/00_core.ipynb #388c8bd8
 @patch
 async def goto(self:CDP, url, sid=None, **kwargs):
     "Navigate to url and wait for load+idle"
