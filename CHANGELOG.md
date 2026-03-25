@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.5
+
+### New Features
+
+- Add remote()/`remote_page`()/`active_page`() for Chrome remote debugging via HTTP endpoint ([#3](https://github.com/AnswerDotAI/fastcdp/issues/3))
+
+
 ## 0.0.4
 
 ### New Features
