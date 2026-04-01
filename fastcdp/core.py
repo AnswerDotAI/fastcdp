@@ -436,6 +436,6 @@ async def click_and_wait(self:CDP, backendNodeId, sid=None, **kwargs):
 # %% ../nbs/00_core.ipynb #904883ee
 def cdp_yolo():
     "Allow all CDP classes in safepyrun"
-    from safepyrun import allow
+    from pyskills import allow
     allow({CDP:..., CDPDomain:..., CDPMethod:...})
     allow({PageDomain:..., Page:..., AXNode:..., AXTree:...})
