@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.37">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="description" content="Source and API details">
+
+<title>FastCDP API – fastcdp</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-7f8f88aac4f3542376d5c11b86a4c14d.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-de52dc3353fe04aa4d07820b7139bd46.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+<link rel="stylesheet" href="styles.css">
+<meta property="og:title" content="FastCDP API – fastcdp">
+<meta property="og:description" content="Source and API details">
+<meta property="og:site_name" content="fastcdp">
+<meta name="twitter:title" content="FastCDP API – fastcdp">
+<meta name="twitter:description" content="Source and API details">
+<meta name="twitter:card" content="summary">
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">fastcdp</span>
+    </a>
+  </div>
+        <div class="quarto-navbar-tools tools-end">
+</div>
+          <div id="quarto-search" class="" title="Search"></div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./core.html">FastCDP API</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">fastcdp</span></a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./core.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">FastCDP API</span></a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#cdp_search" id="toc-cdp_search" class="nav-link active" data-scroll-target="#cdp_search">cdp_search</a></li>
+  <li><a href="#cdp_conninfo" id="toc-cdp_conninfo" class="nav-link" data-scroll-target="#cdp_conninfo">cdp_conninfo</a></li>
+  <li><a href="#cdp" id="toc-cdp" class="nav-link" data-scroll-target="#cdp">CDP</a></li>
+  <li><a href="#cdp.remote" id="toc-cdp.remote" class="nav-link" data-scroll-target="#cdp.remote">CDP.remote</a></li>
+  <li><a href="#cdp.pages" id="toc-cdp.pages" class="nav-link" data-scroll-target="#cdp.pages">CDP.pages</a></li>
+  <li><a href="#cdpdomain" id="toc-cdpdomain" class="nav-link" data-scroll-target="#cdpdomain">CDPDomain</a></li>
+  <li><a href="#cdpmethod" id="toc-cdpmethod" class="nav-link" data-scroll-target="#cdpmethod">CDPMethod</a></li>
+  <li><a href="#cdp.eval" id="toc-cdp.eval" class="nav-link" data-scroll-target="#cdp.eval">CDP.eval</a></li>
+  <li><a href="#cdp.attach" id="toc-cdp.attach" class="nav-link" data-scroll-target="#cdp.attach">CDP.attach</a></li>
+  <li><a href="#cdp.wait_event" id="toc-cdp.wait_event" class="nav-link" data-scroll-target="#cdp.wait_event">CDP.wait_event</a></li>
+  <li><a href="#on" id="toc-on" class="nav-link" data-scroll-target="#on">on</a></li>
+  <li><a href="#cdp.wait_for_selector" id="toc-cdp.wait_for_selector" class="nav-link" data-scroll-target="#cdp.wait_for_selector">CDP.wait_for_selector</a></li>
+  <li><a href="#cdp.wait_for" id="toc-cdp.wait_for" class="nav-link" data-scroll-target="#cdp.wait_for">CDP.wait_for</a></li>
+  <li><a href="#cdp.wait_load" id="toc-cdp.wait_load" class="nav-link" data-scroll-target="#cdp.wait_load">CDP.wait_load</a></li>
+  <li><a href="#pagedomain" id="toc-pagedomain" class="nav-link" data-scroll-target="#pagedomain">PageDomain</a></li>
+  <li><a href="#page" id="toc-page" class="nav-link" data-scroll-target="#page">Page</a></li>
+  <li><a href="#cdp.remote_page" id="toc-cdp.remote_page" class="nav-link" data-scroll-target="#cdp.remote_page">CDP.remote_page</a></li>
+  <li><a href="#cdp.active_page" id="toc-cdp.active_page" class="nav-link" data-scroll-target="#cdp.active_page">CDP.active_page</a></li>
+  <li><a href="#cdp.new_page" id="toc-cdp.new_page" class="nav-link" data-scroll-target="#cdp.new_page">CDP.new_page</a></li>
+  <li><a href="#cdp.goto" id="toc-cdp.goto" class="nav-link" data-scroll-target="#cdp.goto">CDP.goto</a></li>
+  <li><a href="#wait_ready" id="toc-wait_ready" class="nav-link" data-scroll-target="#wait_ready">wait_ready</a></li>
+  <li><a href="#cdp.wait_for_ready" id="toc-cdp.wait_for_ready" class="nav-link" data-scroll-target="#cdp.wait_for_ready">CDP.wait_for_ready</a></li>
+  <li><a href="#cdp.screenshot" id="toc-cdp.screenshot" class="nav-link" data-scroll-target="#cdp.screenshot">CDP.screenshot</a></li>
+  <li><a href="#llms-and-accessibility" id="toc-llms-and-accessibility" class="nav-link" data-scroll-target="#llms-and-accessibility">LLMs and accessibility</a>
+  <ul class="collapse">
+  <li><a href="#axtree" id="toc-axtree" class="nav-link" data-scroll-target="#axtree">AXTree</a></li>
+  <li><a href="#axnode" id="toc-axnode" class="nav-link" data-scroll-target="#axnode">AXNode</a></li>
+  <li><a href="#build_ax_tree" id="toc-build_ax_tree" class="nav-link" data-scroll-target="#build_ax_tree">build_ax_tree</a></li>
+  <li><a href="#cdp.ax_tree" id="toc-cdp.ax_tree" class="nav-link" data-scroll-target="#cdp.ax_tree">CDP.ax_tree</a></li>
+  <li><a href="#axnode.find_all" id="toc-axnode.find_all" class="nav-link" data-scroll-target="#axnode.find_all">AXNode.find_all</a></li>
+  <li><a href="#axnode.find_id" id="toc-axnode.find_id" class="nav-link" data-scroll-target="#axnode.find_id">AXNode.find_id</a></li>
+  <li><a href="#axnode.find" id="toc-axnode.find" class="nav-link" data-scroll-target="#axnode.find">AXNode.find</a></li>
+  <li><a href="#cdp.click" id="toc-cdp.click" class="nav-link" data-scroll-target="#cdp.click">CDP.click</a></li>
+  <li><a href="#cdp.js_node_run" id="toc-cdp.js_node_run" class="nav-link" data-scroll-target="#cdp.js_node_run">CDP.js_node_run</a></li>
+  <li><a href="#cdp.js_node" id="toc-cdp.js_node" class="nav-link" data-scroll-target="#cdp.js_node">CDP.js_node</a></li>
+  <li><a href="#cdp.fill_text" id="toc-cdp.fill_text" class="nav-link" data-scroll-target="#cdp.fill_text">CDP.fill_text</a></li>
+  <li><a href="#cdp.click_and_wait" id="toc-cdp.click_and_wait" class="nav-link" data-scroll-target="#cdp.click_and_wait">CDP.click_and_wait</a></li>
+  <li><a href="#cdp_yolo" id="toc-cdp_yolo" class="nav-link" data-scroll-target="#cdp_yolo">cdp_yolo</a></li>
+  </ul></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/AnswerDotAI/fastcdp/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div><div class="quarto-alternate-formats"><h2>Other Formats</h2><ul><li><a href="core.html.md"><i class="bi bi-file-code"></i>CommonMark</a></li></ul></div></nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">FastCDP API</h1>
+</div>
+
+<div>
+  <div class="description">
+    Source and API details
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- WARNING: THIS FILE WAS AUTOGENERATED! DO NOT EDIT! -->
+<div id="acb567c0" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="bu">len</span>(_cdp_domains), [d[<span class="st">'domain'</span>] <span class="cf">for</span> d <span class="kw">in</span> _cdp_domains[:<span class="dv">5</span>]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>(55, ['Accessibility', 'Animation', 'Audits', 'Autofill', 'BackgroundService'])</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L26" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="cdp_search" class="level3">
+<h3 class="anchored" data-anchor-id="cdp_search">cdp_search</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cdp_search(</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    q:<span class="bu">str</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Search CDP domains and commands by name or description</em></p>
+<div id="3a7167a1" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>cdp_search(<span class="st">'target'</span>)[:<span class="dv">100</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Audits.checkFormsIssues: Runs the form issues check for the target page. Found issues are reported\nu'</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L49" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp_conninfo" class="level3">
+<h3 class="anchored" data-anchor-id="cdp_conninfo">cdp_conninfo</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cdp_conninfo(</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    p:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<p>On MacOS, the connection info is stored in <code>~/Library/Application Support/Google/Chrome/DevToolsActivePort</code>.</p>
+<div id="2b4c8f67" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>conninfo <span class="op">=</span> cdp_conninfo()</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>conninfo</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'9222/devtools/browser/6c364cd1-dae4-4e9e-857d-80fc243dbc61'</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L55" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp" class="level3">
+<h3 class="anchored" data-anchor-id="cdp">CDP</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> CDP(</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    wsconn:NoneType<span class="op">=</span><span class="va">None</span>, debug:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Chrome DevTools Protocol connection with event support</em></p>
+<div id="9dffaa11" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># await cdp.close()</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L117" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.remote" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.remote">CDP.remote</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> remote(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    port:<span class="bu">int</span><span class="op">=</span><span class="dv">9222</span>, debug:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Connect via Chrome remote debugging HTTP endpoint</em></p>
+<div id="135a6cec" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>cdp <span class="op">=</span> <span class="cf">await</span> CDP.remote()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L125" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.pages" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.pages">CDP.pages</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> pages(</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="0ac30587" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>ps <span class="op">=</span> <span class="cf">await</span> cdp.pages</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>pg <span class="op">=</span> first(p <span class="cf">for</span> p <span class="kw">in</span> ps <span class="cf">if</span> <span class="st">'example.com'</span> <span class="kw">in</span> p[<span class="st">'url'</span>])</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>pg[<span class="st">'title'</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Example Domain'</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L158" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdpdomain" class="level3">
+<h3 class="anchored" data-anchor-id="cdpdomain">CDPDomain</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> CDPDomain(</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    cdp, domain</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L149" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdpmethod" class="level3">
+<h3 class="anchored" data-anchor-id="cdpmethod">CDPMethod</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> CDPMethod(</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    cdp, domain, method</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L175" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.eval" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.eval">CDP.eval</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> <span class="bu">eval</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    expr, sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L171" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.attach" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.attach">CDP.attach</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> attach(</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    tid</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="1ddc94c1" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>tid <span class="op">=</span> pg[<span class="st">'targetId'</span>]</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>sid <span class="op">=</span> <span class="cf">await</span> cdp.attach(tid)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> cdp.<span class="bu">eval</span>(<span class="st">'document.title'</span>, sid)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'Example Domain'</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L188" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.wait_event" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.wait_event">CDP.wait_event</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> wait_event(</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    event, timeout:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<hr>
+</section>
+<section id="on" class="level3">
+<h3 class="anchored" data-anchor-id="on">on</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> on(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    event</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L212" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.wait_for_selector" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.wait_for_selector">CDP.wait_for_selector</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> wait_for_selector(</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    sel, sid:NoneType<span class="op">=</span><span class="va">None</span>, timeout:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Wait for CSS selector to match an element</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L202" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.wait_for" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.wait_for">CDP.wait_for</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> wait_for(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    expr, sid:NoneType<span class="op">=</span><span class="va">None</span>, timeout:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Wait for JS expression to be truthy, return its value</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L195" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.wait_load" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.wait_load">CDP.wait_load</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> wait_load(</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>    sid:NoneType<span class="op">=</span><span class="va">None</span>, timeout:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="3a6f7288" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>t <span class="op">=</span> <span class="cf">await</span> cdp.target.createTarget(url<span class="op">=</span><span class="st">'about:blank'</span>)</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>sid <span class="op">=</span> <span class="cf">await</span> cdp.attach(t)</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>page <span class="op">=</span> <span class="cf">await</span> cdp.page.enable(sid<span class="op">=</span>sid)</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> cdp.page.navigate(sid<span class="op">=</span>sid, url<span class="op">=</span><span class="st">'https://httpbin.org/forms/post'</span>)</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> cdp.wait_for_selector(<span class="st">'form'</span>, sid)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="ece3d8ac" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb29"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> cdp.target.closeTarget(targetId<span class="op">=</span>t)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L225" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="pagedomain" class="level3">
+<h3 class="anchored" data-anchor-id="pagedomain">PageDomain</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> PageDomain(</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a>    sid, domain</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L236" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="page" class="level3">
+<h3 class="anchored" data-anchor-id="page">Page</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Page(</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>    cdp, t, sid, owned:<span class="bu">bool</span><span class="op">=</span><span class="va">False</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Initialize self. See help(type(self)) for accurate signature.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L278" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.remote_page" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.remote_page">CDP.remote_page</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> remote_page(</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>    port:<span class="bu">int</span><span class="op">=</span><span class="dv">9222</span>, debug:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Connect via remote debugging and return Page for the active tab</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L270" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.active_page" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.active_page">CDP.active_page</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> active_page(</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="514c5dce" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb35"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true" tabindex="-1"></a>page <span class="op">=</span> <span class="cf">await</span> CDP.remote_page()</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.<span class="bu">eval</span>(<span class="st">'document.title'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>'l:00_core←nbs←fastcdp←aai-ws - SolveIT'</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L289" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.new_page" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.new_page">CDP.new_page</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> new_page(</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Create a new tab, return Page</em></p>
+<div id="9933fac0" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb38"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>page <span class="op">=</span> <span class="cf">await</span> cdp.new_page()</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.page.navigate(url<span class="op">=</span><span class="st">'https://httpbin.org/forms/post'</span>)</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.wait_for_selector(<span class="st">'form'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="a2c4bb86" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb40"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>page.is_open</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<div id="ce07a2f0" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb42"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.close()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="def2665d" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb43"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a>page.is_open</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>True</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L319" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.goto" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.goto">CDP.goto</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb45"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> goto(</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>    url, sid:NoneType<span class="op">=</span><span class="va">None</span>, kwargs:VAR_KEYWORD</span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Navigate to url and wait for load+idle</em></p>
+<hr>
+</section>
+<section id="wait_ready" class="level3">
+<h3 class="anchored" data-anchor-id="wait_ready">wait_ready</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb46"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> wait_ready(</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>    sid:NoneType<span class="op">=</span><span class="va">None</span>, timeout:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span>, idle_ms:<span class="bu">int</span><span class="op">=</span><span class="dv">500</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Context manager: subscribes before action, waits for load+idle after</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L297" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.wait_for_ready" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.wait_for_ready">CDP.wait_for_ready</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> wait_for_ready(</span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a>    sid:NoneType<span class="op">=</span><span class="va">None</span>, timeout:<span class="bu">int</span><span class="op">=</span><span class="dv">10</span>, idle_ms:<span class="bu">int</span><span class="op">=</span><span class="dv">500</span></span>
+<span id="cb47-4"><a href="#cb47-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb47-5"><a href="#cb47-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Wait until network is idle for idle_ms</em></p>
+<div id="5c1dc624" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb48"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>page <span class="op">=</span> <span class="cf">await</span> Page.new(cdp<span class="op">=</span>cdp)</span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.goto(<span class="st">'https://httpbin.org/forms/post'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L325" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.screenshot" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.screenshot">CDP.screenshot</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb49"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> screenshot(</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>    sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="570b927f" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb50"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> asyncio.sleep(<span class="fl">0.2</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="2efccd35" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb51"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>img <span class="op">=</span> <span class="cf">await</span> page.screenshot()</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a><span class="co"># img</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="7408b95c" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb52"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.close()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="9774c212" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb53"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> cdp.close()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</section>
+<section id="llms-and-accessibility" class="level2">
+<h2 class="anchored" data-anchor-id="llms-and-accessibility">LLMs and accessibility</h2>
+<div id="ad82dd13" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb54"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>cdp <span class="op">=</span> <span class="cf">await</span> CDP.remote()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="cefd119f" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb55"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>page <span class="op">=</span> <span class="cf">await</span> cdp.new_page()</span>
+<span id="cb55-2"><a href="#cb55-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.goto(<span class="st">'https://httpbin.org/forms/post'</span>)</span>
+<span id="cb55-3"><a href="#cb55-3" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.<span class="bu">eval</span>(<span class="st">'document.title'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>''</code></pre>
+</div>
+</div>
+<div id="c89bc4d3" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb57"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb57-1"><a href="#cb57-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.accessibility.enable()</span>
+<span id="cb57-2"><a href="#cb57-2" aria-hidden="true" tabindex="-1"></a>tree <span class="op">=</span> <span class="cf">await</span> page.accessibility.getFullAXTree()</span>
+<span id="cb57-3"><a href="#cb57-3" aria-hidden="true" tabindex="-1"></a><span class="bu">len</span>(tree)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>77</code></pre>
+</div>
+</div>
+<div id="7286548f" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb59"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb59-1"><a href="#cb59-1" aria-hidden="true" tabindex="-1"></a>tree[<span class="dv">0</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>{'nodeId': '69',
+ 'ignored': False,
+ 'role': {'type': 'internalRole', 'value': 'RootWebArea'},
+ 'chromeRole': {'type': 'internalRole', 'value': 144},
+ 'name': {'type': 'computedString',
+  'value': '',
+  'sources': [{'type': 'relatedElement', 'attribute': 'aria-labelledby'},
+   {'type': 'attribute', 'attribute': 'aria-label'},
+   {'type': 'attribute', 'attribute': 'aria-label', 'superseded': True},
+   {'type': 'relatedElement', 'nativeSource': 'title'}]},
+ 'properties': [{'name': 'focusable',
+   'value': {'type': 'booleanOrUndefined', 'value': True}},
+  {'name': 'focused', 'value': {'type': 'booleanOrUndefined', 'value': True}},
+  {'name': 'url',
+   'value': {'type': 'string', 'value': 'https://httpbin.org/forms/post'}}],
+ 'childIds': ['71'],
+ 'backendDOMNodeId': 69,
+ 'frameId': '523C62BB46692DDED9606FB1D00591B0'}</code></pre>
+</div>
+</div>
+<div id="1f9d90cc" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb61"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb61-1"><a href="#cb61-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.close()</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L352" target="_blank" style="float:right; font-size:smaller">source</a></p>
+<section id="axtree" class="level3">
+<h3 class="anchored" data-anchor-id="axtree">AXTree</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb62"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> AXTree(</span>
+<span id="cb62-3"><a href="#cb62-3" aria-hidden="true" tabindex="-1"></a>    raw</span>
+<span id="cb62-4"><a href="#cb62-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb62-5"><a href="#cb62-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Chrome accessibility tree node with compact repr</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L331" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="axnode" class="level3">
+<h3 class="anchored" data-anchor-id="axnode">AXNode</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb63"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb63-1"><a href="#cb63-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb63-2"><a href="#cb63-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> AXNode(</span>
+<span id="cb63-3"><a href="#cb63-3" aria-hidden="true" tabindex="-1"></a>    raw</span>
+<span id="cb63-4"><a href="#cb63-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb63-5"><a href="#cb63-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Chrome accessibility tree node with compact repr</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L363" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="build_ax_tree" class="level3">
+<h3 class="anchored" data-anchor-id="build_ax_tree">build_ax_tree</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb64"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> build_ax_tree(</span>
+<span id="cb64-3"><a href="#cb64-3" aria-hidden="true" tabindex="-1"></a>    nodes</span>
+<span id="cb64-4"><a href="#cb64-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb64-5"><a href="#cb64-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Build AXNode tree from flat CDP accessibility node list</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L382" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.ax_tree" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.ax_tree">CDP.ax_tree</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb65"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb65-2"><a href="#cb65-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> ax_tree(</span>
+<span id="cb65-3"><a href="#cb65-3" aria-hidden="true" tabindex="-1"></a>    sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb65-4"><a href="#cb65-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb65-5"><a href="#cb65-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Get accessibility tree for session</em></p>
+<div id="274ff556" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb66"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb66-1"><a href="#cb66-1" aria-hidden="true" tabindex="-1"></a>page <span class="op">=</span> <span class="cf">await</span> cdp.new_page()</span>
+<span id="cb66-2"><a href="#cb66-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.goto(<span class="st">'https://httpbin.org/forms/post'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="de88407c" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb67"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a>root <span class="op">=</span> <span class="cf">await</span> page.ax_tree()</span>
+<span id="cb67-2"><a href="#cb67-2" aria-hidden="true" tabindex="-1"></a>root</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display cell-output-markdown">
+<div class="prose">
+<ul>
+<li><strong>RootWebArea</strong> “” <code>focusable=True</code> <code>url=https://httpbin.org/forms/post</code> [#68]
+<ul>
+<li><strong>LabelText</strong> “” [#75]
+<ul>
+<li><strong>StaticText</strong> “Customer name:” [#37]</li>
+<li><strong>textbox</strong> “Customer name:” <code>focusable=True</code> <code>editable=plaintext</code> <code>settable=True</code> [#36]</li>
+</ul></li>
+<li><strong>LabelText</strong> “” [#78]
+<ul>
+<li><strong>StaticText</strong> “Telephone:” [#38]</li>
+<li><strong>textbox</strong> “Telephone:” <code>focusable=True</code> <code>editable=plaintext</code> <code>settable=True</code> [#57]</li>
+</ul></li>
+<li><strong>LabelText</strong> “” [#81]
+<ul>
+<li><strong>StaticText</strong> “E-mail address:” [#39]</li>
+<li><strong>textbox</strong> “E-mail address:” <code>focusable=True</code> <code>editable=plaintext</code> <code>settable=True</code> [#58]</li>
+</ul></li>
+<li><strong>group</strong> “Pizza Size” [#83]
+<ul>
+<li><strong>Legend</strong> “” [#84]
+<ul>
+<li><strong>StaticText</strong> “Pizza Size” [#40]</li>
+</ul></li>
+<li><strong>radio</strong> ” Small” <code>focusable=True</code> [#60]</li>
+<li><strong>radio</strong> ” Medium” <code>focusable=True</code> [#61]</li>
+<li><strong>radio</strong> ” Large” <code>focusable=True</code> [#62]</li>
+</ul></li>
+<li><strong>group</strong> “Pizza Toppings” [#91]
+<ul>
+<li><strong>Legend</strong> “” [#92]
+<ul>
+<li><strong>StaticText</strong> “Pizza Toppings” [#44]</li>
+</ul></li>
+<li><strong>checkbox</strong> ” Bacon” <code>focusable=True</code> [#63]</li>
+<li><strong>checkbox</strong> ” Extra Cheese” <code>focusable=True</code> [#64]</li>
+<li><strong>checkbox</strong> ” Onion” <code>focusable=True</code> [#65]</li>
+<li><strong>checkbox</strong> ” Mushroom” <code>focusable=True</code> [#66]</li>
+</ul></li>
+<li><strong>LabelText</strong> “” [#102]
+<ul>
+<li><strong>StaticText</strong> “Preferred delivery time:” [#54]</li>
+<li><strong>InputTime</strong> “Preferred delivery time:” <code>focusable=True</code> <code>settable=True</code> [#67]
+<ul>
+<li><strong>spinbutton</strong> “Hours Hours” <code>focusable=True</code> <code>settable=True</code> <code>valuemin=1</code> <code>valuemax=12</code> [#106]
+<ul>
+<li><strong>StaticText</strong> “–” [#49]</li>
+</ul></li>
+<li><strong>StaticText</strong> “:” [#50]</li>
+<li><strong>spinbutton</strong> “Minutes Minutes” <code>focusable=True</code> <code>settable=True</code> <code>valuemax=59</code> [#108]
+<ul>
+<li><strong>StaticText</strong> “–” [#51]</li>
+</ul></li>
+<li><strong>StaticText</strong> ” ” [#52]</li>
+<li><strong>spinbutton</strong> “AM/PM AM/PM” <code>focusable=True</code> <code>settable=True</code> <code>valuemin=1</code> <code>valuemax=2</code> [#110]
+<ul>
+<li><strong>StaticText</strong> “–” [#53]</li>
+</ul></li>
+<li><strong>button</strong> “Show time picker” <code>focusable=True</code> <code>hasPopup=menu</code> [#69]</li>
+</ul></li>
+</ul></li>
+<li><strong>LabelText</strong> “” [#112]
+<ul>
+<li><strong>StaticText</strong> “Delivery instructions:” [#55]</li>
+<li><strong>textbox</strong> “Delivery instructions:” <code>focusable=True</code> <code>editable=plaintext</code> <code>settable=True</code> <code>multiline=True</code> [#59]</li>
+</ul></li>
+<li><strong>button</strong> “Submit order” <code>focusable=True</code> [#115]
+<ul>
+<li><strong>StaticText</strong> “Submit order” [#56]</li>
+</ul></li>
+</ul></li>
+</ul>
+</div>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L402" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="axnode.find_all" class="level3">
+<h3 class="anchored" data-anchor-id="axnode.find_all">AXNode.find_all</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb68"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb68-1"><a href="#cb68-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb68-2"><a href="#cb68-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> find_all(</span>
+<span id="cb68-3"><a href="#cb68-3" aria-hidden="true" tabindex="-1"></a>    role:NoneType<span class="op">=</span><span class="va">None</span>, name:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb68-4"><a href="#cb68-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb68-5"><a href="#cb68-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Find all descendants matching role and/or name substring</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L396" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="axnode.find_id" class="level3">
+<h3 class="anchored" data-anchor-id="axnode.find_id">AXNode.find_id</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb69"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> find_id(</span>
+<span id="cb69-3"><a href="#cb69-3" aria-hidden="true" tabindex="-1"></a>    role:NoneType<span class="op">=</span><span class="va">None</span>, name:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb69-4"><a href="#cb69-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb69-5"><a href="#cb69-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Find first descendant matching role and/or name substring</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L389" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="axnode.find" class="level3">
+<h3 class="anchored" data-anchor-id="axnode.find">AXNode.find</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb70"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb70-1"><a href="#cb70-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb70-2"><a href="#cb70-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> find(</span>
+<span id="cb70-3"><a href="#cb70-3" aria-hidden="true" tabindex="-1"></a>    role:NoneType<span class="op">=</span><span class="va">None</span>, name:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb70-4"><a href="#cb70-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb70-5"><a href="#cb70-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Find first descendant matching role and/or name substring</em></p>
+<div id="78885735" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb71"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a>nmid <span class="op">=</span> root.find_id(<span class="st">'textbox'</span>, <span class="st">'Customer name'</span>)</span>
+<span id="cb71-2"><a href="#cb71-2" aria-hidden="true" tabindex="-1"></a>phid <span class="op">=</span> root.find_id(<span class="st">'textbox'</span>, <span class="st">'Telephone'</span>)</span>
+<span id="cb71-3"><a href="#cb71-3" aria-hidden="true" tabindex="-1"></a>nmid</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>36</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L421" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.click" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.click">CDP.click</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb73"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> click(</span>
+<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>    backendNodeId, sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb73-5"><a href="#cb73-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L417" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.js_node_run" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.js_node_run">CDP.js_node_run</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb74"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb74-2"><a href="#cb74-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> js_node_run(</span>
+<span id="cb74-3"><a href="#cb74-3" aria-hidden="true" tabindex="-1"></a>    code, backendNodeId, sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb74-4"><a href="#cb74-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb74-5"><a href="#cb74-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L411" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.js_node" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.js_node">CDP.js_node</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb75"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb75-2"><a href="#cb75-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> js_node(</span>
+<span id="cb75-3"><a href="#cb75-3" aria-hidden="true" tabindex="-1"></a>    fn, backendNodeId, sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb75-4"><a href="#cb75-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb75-5"><a href="#cb75-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="17a27f15" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb76"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb76-1"><a href="#cb76-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.DOM.focus(backendNodeId<span class="op">=</span>nmid)</span>
+<span id="cb76-2"><a href="#cb76-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.<span class="bu">input</span>.insertText(text<span class="op">=</span><span class="st">'Jeremy Howard'</span>)</span>
+<span id="cb76-3"><a href="#cb76-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb76-4"><a href="#cb76-4" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.DOM.focus(backendNodeId<span class="op">=</span>phid)</span>
+<span id="cb76-5"><a href="#cb76-5" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.<span class="bu">input</span>.insertText(text<span class="op">=</span><span class="st">'555-1234'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>{}</code></pre>
+</div>
+</div>
+<div id="391b8f92" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb78"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb78-1"><a href="#cb78-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.click(root.find_id(<span class="st">'radio'</span>, <span class="st">'Large'</span>))</span>
+<span id="cb78-2"><a href="#cb78-2" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.click(root.find_id(<span class="st">'checkbox'</span>, <span class="st">'Extra Cheese'</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L426" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.fill_text" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.fill_text">CDP.fill_text</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb79"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb79-1"><a href="#cb79-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb79-2"><a href="#cb79-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> fill_text(</span>
+<span id="cb79-3"><a href="#cb79-3" aria-hidden="true" tabindex="-1"></a>    backendNodeId, text, sid:NoneType<span class="op">=</span><span class="va">None</span></span>
+<span id="cb79-4"><a href="#cb79-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb79-5"><a href="#cb79-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Call self as a function.</em></p>
+<div id="ff0e6668" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb80"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb80-1"><a href="#cb80-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.fill_text(root.find_id(<span class="st">'textbox'</span>, <span class="st">'Delivery'</span>), <span class="st">'Ring the doorbell twice'</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<div id="eff59c4c" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb81"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb81-1"><a href="#cb81-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.js_node_run(<span class="st">'this.value = "18:30"'</span>, root.find_id(<span class="st">'InputTime'</span>, <span class="st">'delivery time'</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="cell-output cell-output-display">
+<pre><code>{'type': 'undefined'}</code></pre>
+</div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L432" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp.click_and_wait" class="level3">
+<h3 class="anchored" data-anchor-id="cdp.click_and_wait">CDP.click_and_wait</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb83"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb83-1"><a href="#cb83-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb83-2"><a href="#cb83-2" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> click_and_wait(</span>
+<span id="cb83-3"><a href="#cb83-3" aria-hidden="true" tabindex="-1"></a>    backendNodeId, sid:NoneType<span class="op">=</span><span class="va">None</span>, kwargs:VAR_KEYWORD</span>
+<span id="cb83-4"><a href="#cb83-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb83-5"><a href="#cb83-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Click element and wait for load+idle</em></p>
+<div id="466444aa" class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb84"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb84-1"><a href="#cb84-1" aria-hidden="true" tabindex="-1"></a><span class="cf">await</span> page.click_and_wait(root.find_id(<span class="st">'button'</span>, <span class="st">'Submit order'</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<hr>
+<p><a href="https://github.com/AnswerDotAI/fastcdp/blob/main/fastcdp/core.py#L437" target="_blank" style="float:right; font-size:smaller">source</a></p>
+</section>
+<section id="cdp_yolo" class="level3">
+<h3 class="anchored" data-anchor-id="cdp_yolo">cdp_yolo</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb85"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb85-1"><a href="#cb85-1" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb85-2"><a href="#cb85-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> cdp_yolo(</span>
+<span id="cb85-3"><a href="#cb85-3" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb85-4"><a href="#cb85-4" aria-hidden="true" tabindex="-1"></a>):</span>
+<span id="cb85-5"><a href="#cb85-5" aria-hidden="true" tabindex="-1"></a></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><em>Allow all CDP classes in safepyrun</em></p>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/AnswerDotAI\.github\.io\/fastcdp");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/AnswerDotAI/fastcdp/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>

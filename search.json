@@ -1,0 +1,62 @@
+[
+  {
+    "objectID": "core.html",
+    "href": "core.html",
+    "title": "FastCDP API",
+    "section": "",
+    "text": "len(_cdp_domains), [d['domain'] for d in _cdp_domains[:5]]\n\n(55, ['Accessibility', 'Animation', 'Audits', 'Autofill', 'BackgroundService'])\nsource",
+    "crumbs": [
+      "FastCDP API"
+    ]
+  },
+  {
+    "objectID": "core.html#llms-and-accessibility",
+    "href": "core.html#llms-and-accessibility",
+    "title": "FastCDP API",
+    "section": "LLMs and accessibility",
+    "text": "LLMs and accessibility\n\ncdp = await CDP.remote()\n\n\npage = await cdp.new_page()\nawait page.goto('https://httpbin.org/forms/post')\nawait page.eval('document.title')\n\n''\n\n\n\nawait page.accessibility.enable()\ntree = await page.accessibility.getFullAXTree()\nlen(tree)\n\n77\n\n\n\ntree[0]\n\n{'nodeId': '69',\n 'ignored': False,\n 'role': {'type': 'internalRole', 'value': 'RootWebArea'},\n 'chromeRole': {'type': 'internalRole', 'value': 144},\n 'name': {'type': 'computedString',\n  'value': '',\n  'sources': [{'type': 'relatedElement', 'attribute': 'aria-labelledby'},\n   {'type': 'attribute', 'attribute': 'aria-label'},\n   {'type': 'attribute', 'attribute': 'aria-label', 'superseded': True},\n   {'type': 'relatedElement', 'nativeSource': 'title'}]},\n 'properties': [{'name': 'focusable',\n   'value': {'type': 'booleanOrUndefined', 'value': True}},\n  {'name': 'focused', 'value': {'type': 'booleanOrUndefined', 'value': True}},\n  {'name': 'url',\n   'value': {'type': 'string', 'value': 'https://httpbin.org/forms/post'}}],\n 'childIds': ['71'],\n 'backendDOMNodeId': 69,\n 'frameId': '523C62BB46692DDED9606FB1D00591B0'}\n\n\n\nawait page.close()\n\n\nsource\n\nAXTree\n\ndef AXTree(\n    raw\n):\n\nChrome accessibility tree node with compact repr\n\nsource\n\n\nAXNode\n\ndef AXNode(\n    raw\n):\n\nChrome accessibility tree node with compact repr\n\nsource\n\n\nbuild_ax_tree\n\ndef build_ax_tree(\n    nodes\n):\n\nBuild AXNode tree from flat CDP accessibility node list\n\nsource\n\n\nCDP.ax_tree\n\nasync def ax_tree(\n    sid:NoneType=None\n):\n\nGet accessibility tree for session\n\npage = await cdp.new_page()\nawait page.goto('https://httpbin.org/forms/post')\n\n\nroot = await page.ax_tree()\nroot\n\n\n\nRootWebArea “” focusable=True url=https://httpbin.org/forms/post [#68]\n\nLabelText “” [#75]\n\nStaticText “Customer name:” [#37]\ntextbox “Customer name:” focusable=True editable=plaintext settable=True [#36]\n\nLabelText “” [#78]\n\nStaticText “Telephone:” [#38]\ntextbox “Telephone:” focusable=True editable=plaintext settable=True [#57]\n\nLabelText “” [#81]\n\nStaticText “E-mail address:” [#39]\ntextbox “E-mail address:” focusable=True editable=plaintext settable=True [#58]\n\ngroup “Pizza Size” [#83]\n\nLegend “” [#84]\n\nStaticText “Pizza Size” [#40]\n\nradio ” Small” focusable=True [#60]\nradio ” Medium” focusable=True [#61]\nradio ” Large” focusable=True [#62]\n\ngroup “Pizza Toppings” [#91]\n\nLegend “” [#92]\n\nStaticText “Pizza Toppings” [#44]\n\ncheckbox ” Bacon” focusable=True [#63]\ncheckbox ” Extra Cheese” focusable=True [#64]\ncheckbox ” Onion” focusable=True [#65]\ncheckbox ” Mushroom” focusable=True [#66]\n\nLabelText “” [#102]\n\nStaticText “Preferred delivery time:” [#54]\nInputTime “Preferred delivery time:” focusable=True settable=True [#67]\n\nspinbutton “Hours Hours” focusable=True settable=True valuemin=1 valuemax=12 [#106]\n\nStaticText “–” [#49]\n\nStaticText “:” [#50]\nspinbutton “Minutes Minutes” focusable=True settable=True valuemax=59 [#108]\n\nStaticText “–” [#51]\n\nStaticText ” ” [#52]\nspinbutton “AM/PM AM/PM” focusable=True settable=True valuemin=1 valuemax=2 [#110]\n\nStaticText “–” [#53]\n\nbutton “Show time picker” focusable=True hasPopup=menu [#69]\n\n\nLabelText “” [#112]\n\nStaticText “Delivery instructions:” [#55]\ntextbox “Delivery instructions:” focusable=True editable=plaintext settable=True multiline=True [#59]\n\nbutton “Submit order” focusable=True [#115]\n\nStaticText “Submit order” [#56]\n\n\n\n\n\n\n\nsource\n\n\nAXNode.find_all\n\ndef find_all(\n    role:NoneType=None, name:NoneType=None\n):\n\nFind all descendants matching role and/or name substring\n\nsource\n\n\nAXNode.find_id\n\ndef find_id(\n    role:NoneType=None, name:NoneType=None\n):\n\nFind first descendant matching role and/or name substring\n\nsource\n\n\nAXNode.find\n\ndef find(\n    role:NoneType=None, name:NoneType=None\n):\n\nFind first descendant matching role and/or name substring\n\nnmid = root.find_id('textbox', 'Customer name')\nphid = root.find_id('textbox', 'Telephone')\nnmid\n\n36\n\n\n\nsource\n\n\nCDP.click\n\nasync def click(\n    backendNodeId, sid:NoneType=None\n):\n\nCall self as a function.\n\nsource\n\n\nCDP.js_node_run\n\nasync def js_node_run(\n    code, backendNodeId, sid:NoneType=None\n):\n\nCall self as a function.\n\nsource\n\n\nCDP.js_node\n\nasync def js_node(\n    fn, backendNodeId, sid:NoneType=None\n):\n\nCall self as a function.\n\nawait page.DOM.focus(backendNodeId=nmid)\nawait page.input.insertText(text='Jeremy Howard')\n\nawait page.DOM.focus(backendNodeId=phid)\nawait page.input.insertText(text='555-1234')\n\n{}\n\n\n\nawait page.click(root.find_id('radio', 'Large'))\nawait page.click(root.find_id('checkbox', 'Extra Cheese'))\n\n\nsource\n\n\nCDP.fill_text\n\nasync def fill_text(\n    backendNodeId, text, sid:NoneType=None\n):\n\nCall self as a function.\n\nawait page.fill_text(root.find_id('textbox', 'Delivery'), 'Ring the doorbell twice')\n\n\nawait page.js_node_run('this.value = \"18:30\"', root.find_id('InputTime', 'delivery time'))\n\n{'type': 'undefined'}\n\n\n\nsource\n\n\nCDP.click_and_wait\n\nasync def click_and_wait(\n    backendNodeId, sid:NoneType=None, kwargs:VAR_KEYWORD\n):\n\nClick element and wait for load+idle\n\nawait page.click_and_wait(root.find_id('button', 'Submit order'))\n\n\nsource\n\n\ncdp_yolo\n\ndef cdp_yolo(\n    \n):\n\nAllow all CDP classes in safepyrun",
+    "crumbs": [
+      "FastCDP API"
+    ]
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "fastcdp",
+    "section": "",
+    "text": "fastcdp provides an async Python client for the Chrome DevTools Protocol (CDP) over WebSocket. It auto-discovers Chrome’s debug port, loads the full protocol schema from bundled JSON files, and exposes every CDP domain as a Python attribute with auto-generated signatures and docstrings — e.g. await cdp.page.navigate(url=...).\nIt includes a Page class for tab-scoped operations, event subscription via cdp.on()/cdp.wait_event(), navigation helpers (goto, wait_for_selector, wait_for), screenshot capture, and accessibility tree access. A cdp_search utility lets you search CDP commands by name or description. For use inside safepyrun sandboxes, cdp_yolo() registers all CDP classes.",
+    "crumbs": [
+      "fastcdp"
+    ]
+  },
+  {
+    "objectID": "index.html#installation",
+    "href": "index.html#installation",
+    "title": "fastcdp",
+    "section": "Installation",
+    "text": "Installation\nInstall latest from pypi\n$ pip install fastcdp",
+    "crumbs": [
+      "fastcdp"
+    ]
+  },
+  {
+    "objectID": "index.html#how-to-use",
+    "href": "index.html#how-to-use",
+    "title": "fastcdp",
+    "section": "How to use",
+    "text": "How to use\n\nfrom fastcdp import *\n\nChrome 146+ has built-in remote debugging support. Navigate to chrome://inspect/#remote-debugging and enable “Allow remote debugging for this browser instance”:\n\n\n\nimage.png\n\n\n\nThe CDP class\nConnect to Chrome (which will pop up a permissions window):\n\ncdp = await CDP.connect()\n\nEvery CDP domain is available as an attribute with auto-generated signatures. You can search for commands with cdp_search:\n\ncdp_search('screenshot')\n\n\"Emulation.setVisibleSize: Resizes the frame/viewport of the page. Note that this does not affect the frame's container\\n(e.g. browser window). Can \\nHeadlessExperimental.beginFrame: Sends a BeginFrame to the target and returns when the frame was completed. Optionally captures a\\nscreenshot from the res\\n  evt Overlay.screenshotRequested: Fired when user asks to capture screenshot of some area on the page.\\nPage.captureScreenshot: Capture page screenshot.\"\n\n\nList open pages and attach to one:\n\nps = await cdp.pages\npg = ps[0]\npg['title']\n\n'8. Database Transactions — PlanetScale'\n\n\n\ntid = pg['targetId']\nsid = await cdp.attach(tid)\nawait cdp.eval('document.title', sid)\n\n'8. Database Transactions — PlanetScale'\n\n\nThe Page class wraps a tab with its own session, so you don’t need to pass sid everywhere:\n\npage = await cdp.new_page()\nawait page.goto('https://httpbin.org/forms/post')\n\nYou can wait_for any js expression to be truthy, and have it returned:\n\nawait page.wait_for('document.title')\n\n'6. httpbin.org/forms/post'\n\n\nTake a screenshot of the page:\n\nimg = await page.screenshot()\n\nClean up when done:\n\nawait page.close()\nawait cdp.close()\n\nSee CDP docs for full details.",
+    "crumbs": [
+      "fastcdp"
+    ]
+  },
+  {
+    "objectID": "index.html#page.new-and-filling-forms",
+    "href": "index.html#page.new-and-filling-forms",
+    "title": "fastcdp",
+    "section": "Page.new and Filling forms",
+    "text": "Page.new and Filling forms\nInstead of CDP.connect, you can call Page.new with no params to automatically create a CDP object and attach it to a new page:\n\npage = await Page.new()\nawait page.goto('https://httpbin.org/forms/post')\n\nFor finding elements to interact with, use ax_tree:\n\nroot = await page.ax_tree()\nprint(str(root)[:300])\n\n- **RootWebArea** \"6. httpbin.org/forms/post\" `focusable=True` `focused=True` `url=https://httpbin.org/forms/post` [#2]\n  - **LabelText** \"\" [#24]\n    - **StaticText** \"Customer name: \" [#64]\n      - **InlineTextBox** \"Customer name: \"\n    - **textbox** \"Customer name: \" `focusable=True` `editable=p\n\n\nfind and find_id are used to identify elements in the tree:\n\nnmid = root.find_id('textbox', 'Customer name')\nnmid\n\n4\n\n\nYou can use regular CDP methods, or one of the provided shortcuts:\n\nawait page.fill_text(nmid, 'Jeremy Howard')\nawait page.click(root.find_id('radio', 'Large'))\nawait page.js_node_run('this.value = \"18:30\"', root.find_id('InputTime', 'delivery time'))\n\n{'type': 'undefined'}\n\n\nYou can use click to click a button, or click_and_wait to wait for the next page to load:\n\nawait page.click_and_wait(root.find_id('button', 'Submit order'))\n\nWhen using page.New(), close() also shuts down the CDP websocket.\n\nawait page.close()\n\nTo allow LLMs like solveit with safepyrun to access fastcdp, use:\ncdp_yolo()\nThen open a controlled page for it:\npage = await Page.new()\nThen use a prompt such as:\n\nTry using pyrun to go to &lt;url&gt; using the existing page, fill it out, read it to check it’s filled correctly, then submit it, and see what you get back. Don’t use find_id - you can get all the ids at once with ax_tree (don’t truncate the result of it). Don’t add extra waits etc - fastcdp handles it automatically. IDs can change so be sure to use the ax_tree IDs you read.",
+    "crumbs": [
+      "fastcdp"
+    ]
+  }
+]
