@@ -8,7 +8,7 @@ __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'CDPMethod', 'CDPDomain', 'PageD
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
-import websockets, json, platform, asyncio, inspect, base64, httpx
+import websockets, json, platform, asyncio, inspect, base64, httpx, subprocess, time
 from contextlib import asynccontextmanager
 
 # %% ../nbs/00_core.ipynb #930c2391
@@ -237,13 +237,17 @@ class Page:
     def __init__(self, cdp, t, sid, owned=False): store_attr()
 
     @classmethod
-    async def new(cls, t=None, cdp=None, **kwargs):
+    async def new(cls, t=None, cdp=None, record_video=None, background=True, **kwargs):
         if not cdp: cdp,owned = await CDP.connect(**kwargs),True
         else: owned = False
-        if not t: t = await cdp.target.createTarget(url='about:blank')
+        if not t: t = await cdp.target.createTarget(url='about:blank', background=background)
         sid = await cdp.attach(t)
         self = cls(cdp, t, sid, owned=owned)
         await cdp.page.enable(sid=sid)
+        self._record_video = record_video
+        if record_video:
+            Path(record_video).parent.mkdir(parents=True, exist_ok=True)
+            await cdp.start_recording(record_video, sid=sid)
         return self
 
     def __getattr__(self, name):
@@ -256,6 +260,10 @@ class Page:
 
     async def close(self):
         # Ignore errors if already closed
+        if getattr(self, '_record_video', None):
+            try: await self.cdp.stop_recording(sid=self.sid)
+            except Exception: pass
+            self._record_video = None
         try: await self.cdp.target.closeTarget(targetId=self.t)
         except RuntimeError: pass
         if self.owned: await self.cdp.close()
@@ -286,9 +294,9 @@ async def remote_page(cls:CDP, port=9222, debug=None):
 
 # %% ../nbs/00_core.ipynb #3d0570b5
 @patch
-async def new_page(self:CDP):
+async def new_page(self:CDP, background=True):
     "Create a new tab, return Page"
-    t = await self.target.createTarget(url='about:blank')
+    t = await self.target.createTarget(url='about:blank', background=background)
     await asyncio.sleep(0.1)
     return await Page.new(t, self)
 
@@ -326,6 +334,57 @@ async def screenshot(self:CDP, sid=None):
     from IPython.display import Image
     b64 = await self.page.captureScreenshot(sid=sid, format='png')
     return Image(base64.b64decode(b64))
+
+# %% ../nbs/00_core.ipynb #357026af
+@patch
+async def start_recording(self:CDP, path='recording.mp4', fps=25, quality=80, sid=None):
+    "Start recording the page to an mp4 file via ffmpeg"
+    self._rec_path, self._rec_fps = path, fps
+    self._ffmpeg = subprocess.Popen(
+        ['ffmpeg', '-y', '-f', 'image2pipe', '-framerate', str(fps), '-i', '-',
+        '-c:v', 'libsvtav1', '-crf', '35', '-preset', '8', '-movflags', '+faststart', path],
+        stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    self._rec_task = asyncio.create_task(self._record_loop(fps, quality, sid))
+
+# %% ../nbs/00_core.ipynb #10a1363b
+@patch
+async def _record_loop(self:CDP, fps, quality, sid):
+    "Receive screencast frames and pipe to ffmpeg, duplicating to maintain real-time playback"
+    interval = 1.0 / fps
+    async with self.on('Page.screencastFrame') as q:
+        await self.page.startScreencast(sid=sid, format='jpeg', quality=quality, everyNthFrame=1)
+        last_time, last_data = time.monotonic(), None
+        try:
+            while self._ffmpeg.poll() is None:
+                try:
+                    frame = await asyncio.wait_for(q.get(), timeout=interval)
+                    p = frame['params']
+                    data = base64.b64decode(p['data'])
+                    now = time.monotonic()
+                    if last_data:
+                        n_dup = max(1, round((now - last_time) / interval))
+                        for _ in range(n_dup): self._ffmpeg.stdin.write(last_data)
+                    last_data, last_time = data, now
+                    await self.page.screencastFrameAck(sid=sid, sessionId=p['sessionId'])
+                except asyncio.TimeoutError:
+                    if last_data:
+                        self._ffmpeg.stdin.write(last_data)
+                        last_time = time.monotonic()
+        except asyncio.CancelledError:
+            if last_data: self._ffmpeg.stdin.write(last_data)
+        except BrokenPipeError: pass
+
+# %% ../nbs/00_core.ipynb #e1a4db98
+@patch
+async def stop_recording(self:CDP, sid=None):
+    "Stop recording and finalize the video file"
+    try: await self.page.stopScreencast(sid=sid)
+    except RuntimeError: pass
+    self._rec_task.cancel()
+    try: await self._rec_task
+    except asyncio.CancelledError: pass
+    if self._ffmpeg.stdin: self._ffmpeg.stdin.close()
+    self._ffmpeg.wait()
 
 # %% ../nbs/00_core.ipynb #786aa6ef
 class AXNode:
