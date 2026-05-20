@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.6
+
+### New Features
+
+- Add Chromium browser support alongside Chrome ([#5](https://github.com/AnswerDotAI/fastcdp/pull/5)), thanks to [@ncoop57](https://github.com/ncoop57)
+
+
 ## 0.0.5
 
 ### New Features
