@@ -43,11 +43,17 @@ def _lower1(s): return s[0].lower() + s[1:]
 def _upper1(s): return s[0].upper() + s[1:]
 
 _chrome_paths = dict(
-    Darwin='Library/Application Support/Google/Chrome/DevToolsActivePort',
-    Linux ='.config/google-chrome/DevToolsActivePort')
+    Darwin=['Library/Application Support/Google/Chrome/DevToolsActivePort',
+            'Library/Application Support/Chromium/DevToolsActivePort'],
+    Linux=['.config/google-chrome/DevToolsActivePort',
+           '.config/chromium/DevToolsActivePort'])
 
 def cdp_conninfo(p=None):
-    if not p: p = (Path.home()/(_chrome_paths.get(platform.system()) or _chrome_paths['Linux'])).read_text()
+    if not p:
+        paths = _chrome_paths.get(platform.system(), _chrome_paths['Linux'])
+        f = first(Path.home()/p for p in paths if (Path.home()/p).exists())
+        if not f: raise FileNotFoundError('No Chrome or Chromium DevToolsActivePort found')
+        p = f.read_text()
     lines = p.strip().split('\n')
     return ''.join(lines[:2])
 
