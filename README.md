@@ -184,7 +184,7 @@ page = await Page.new()
 
 Then use a prompt such as:
 
-> Try using pyrun to go to `<url>` using the existing `page`, fill it
+> Try using python to go to `<url>` using the existing `page`, fill it
 > out, read it to check it’s filled correctly, then submit it, and see
 > what you get back. Don’t use find_id - you can get all the ids at once
 > with ax_tree (don’t truncate the result of it). Don’t add extra waits
