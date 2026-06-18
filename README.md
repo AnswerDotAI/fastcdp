@@ -84,7 +84,7 @@ everywhere:
 
 ``` python
 page = await cdp.new_page()
-await page.goto('https://httpbin.org/forms/post')
+await page.goto('https://fast-http-bin.pla.sh/forms/post')
 ```
 
 You can `wait_for` any js expression to be truthy, and have it returned:
@@ -93,7 +93,7 @@ You can `wait_for` any js expression to be truthy, and have it returned:
 await page.wait_for('document.title')
 ```
 
-    '6. httpbin.org/forms/post'
+    '6. fast-http-bin.pla.sh/forms/post'
 
 Take a screenshot of the page:
 
@@ -122,7 +122,7 @@ new page:
 
 ``` python
 page = await Page.new()
-await page.goto('https://httpbin.org/forms/post')
+await page.goto('https://fast-http-bin.pla.sh/forms/post')
 ```
 
 For finding elements to interact with, use `ax_tree`:
@@ -132,7 +132,7 @@ root = await page.ax_tree()
 print(str(root)[:300])
 ```
 
-    - **RootWebArea** "6. httpbin.org/forms/post" `focusable=True` `focused=True` `url=https://httpbin.org/forms/post` [#2]
+    - **RootWebArea** "6. fast-http-bin.pla.sh/forms/post" `focusable=True` `focused=True` `url=https://fast-http-bin.pla.sh/forms/post` [#2]
       - **LabelText** "" [#24]
         - **StaticText** "Customer name: " [#64]
           - **InlineTextBox** "Customer name: "
