@@ -28,6 +28,12 @@ Documentation = "https://AnswerDotAI.github.io/fastcdp/"
 [project.entry-points.nbdev]
 fastcdp = "fastcdp._modidx:d"
 
+[project.entry-points.pyskills]
+fastcdp = "fastcdp.skill"
+[project.scripts]
+fastcdp-setup = "fastcdp.setup:main"
+
+
 [tool.setuptools.dynamic]
 version = {attr = "fastcdp.__version__"}
 
@@ -35,7 +41,7 @@ version = {attr = "fastcdp.__version__"}
 include = ["fastcdp"]
 
 [tool.setuptools.package-data]
-fastcdp = ["*.json"]
+fastcdp = ["*.json", "icons/*"]
 
 [tool.nbdev]
 allowed_metadata_keys = ['solveit']
