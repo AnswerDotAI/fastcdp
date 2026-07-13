@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.7
+
+### New Features
+
+- Add Chrome launch/quit, extension transport, debugging helpers, and setup launcher ([#7](https://github.com/AnswerDotAI/fastcdp/issues/7))
+
+
 ## 0.0.6
 
 ### New Features
