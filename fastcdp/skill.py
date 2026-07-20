@@ -12,7 +12,7 @@ Four options; the first needs no user setup at all:
         ...
         await cdp.quit()      # quits the browser; close() only drops the connection
 
-   One launched instance per profile dir -- a second `launch` on the same dir errors, so `quit()` when done. NB: `launch`, `remote` and `remote_page` are patched classmethods that `doc(CDP)` currently doesn't list.
+   A second `launch` on the same profile dir connects to the already-running instance (`reuse=False` to make it raise instead); `quit()` when done. NB: `launch`, `remote` and `remote_page` are patched classmethods that `doc(CDP)` currently doesn't list.
 
 2. *The user's everyday Chrome* (146+), after they enable **Allow remote debugging** in `chrome://inspect` -- use this when their logins/cookies matter:
 
@@ -35,7 +35,7 @@ Four options; the first needs no user setup at all:
 
 # Working with pages
 
-`page = await cdp.new_page()` opens a tab and returns a `Page`: a thin proxy binding that tab's session onto everything `CDP` offers, so no `sid` threading is needed. `doc(CDP)` shows the full helper inventory (navigation and waits, clicking/filling, screenshots, the debugging buffers); it all works on a `Page`. Beyond the helpers, the *entire* protocol is exposed dynamically as `page.<domain>.<command>`; `doc()` any such method (e.g. `doc(page.dom.focus)`) for its protocol docs, and find commands with `cdp_search('querytext')`.
+`page = await cdp.new_page()` opens a tab and returns a `Page`: a thin proxy binding that tab's session onto everything `CDP` offers, so no `sid` threading is needed; `await cdp.attach_page(tid)` returns the same proxy for an existing tab, with tids from `await cdp.pages`. `doc(CDP)` shows the full helper inventory (navigation and waits, clicking/filling, screenshots, the debugging buffers); it all works on a `Page`. `eval` returns the expression's value as a Python object (JSON-serializable results only) and raises on a JS exception. Beyond the helpers, the *entire* protocol is exposed dynamically as `page.<domain>.<command>`; `doc()` any such method (e.g. `doc(page.dom.focus)`) for its protocol docs, and find commands with `cdp_search('querytext')`. One shape note: a command result containing a single key is unwrapped, so e.g. `getWindowBounds` returns the bounds dict itself, one level less nesting than the protocol docs describe.
 
     page = await cdp.new_page()
     await page.goto('https://example.com')          # waits for load + network idle
