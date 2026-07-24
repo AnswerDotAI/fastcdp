@@ -51,7 +51,7 @@ _chrome_paths = dict(
     Linux=['.config/google-chrome/DevToolsActivePort',
            '.config/chromium/DevToolsActivePort'])
 
-def cdp_conninfo(p=None, d=None):
+def cdp_conninfo(p:str=None, d:str|Path=None):
     "Connection info from contents `p`, profile dir `d`, or the default Chrome profile"
     if d: p = (Path(d)/'DevToolsActivePort').read_text()
     if not p:
@@ -65,12 +65,12 @@ def cdp_conninfo(p=None, d=None):
 # %% ../nbs/00_core.ipynb #48f443ee
 class CDP:
     "Chrome DevTools Protocol connection with event support"
-    def __init__(self, wsconn=None, debug=False):
+    def __init__(self, wsconn:str=None, debug:bool=False):
         self._id,self._pending,self._events = 0,{},{}
         store_attr()
 
     @classmethod
-    async def connect(cls, p=None, wsconn=None, debug=None):
+    async def connect(cls, p:str=None, wsconn:str=None, debug:bool=None):
         if wsconn is None: wsconn = cdp_conninfo()
         self = cls(wsconn, debug=debug)
         url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
@@ -109,7 +109,7 @@ class CDP:
         await self.ws.send(json.dumps(msg))
         return await fut
 
-    async def __call__(self, method, sid=None, **params):
+    async def __call__(self, method:str, sid:str=None, **params):
         msg = dict(method=method)
         if params: msg['params'] = params
         if sid: msg['sessionId'] = sid
@@ -135,7 +135,7 @@ class CDP:
 
 # %% ../nbs/00_core.ipynb #1e09344e
 @patch(cls_method=True)
-async def remote(cls:CDP, port=9223, debug=None):
+async def remote(cls:CDP, port:int=9223, debug:bool=None):
     "Connect via Chrome remote debugging HTTP endpoint"
     async with httpx.AsyncClient() as client:
         url = (await client.get(f'http://localhost:{port}/json/version')).json()['webSocketDebuggerUrl']
@@ -157,7 +157,7 @@ def chrome_bin():
 # %% ../nbs/00_core.ipynb #e2ed788d
 @patch(cls_method=True)
 async def launch(cls:CDP,
-    user_data_dir=None, # Profile dir; `~/.cache/fastcdp/profile` if None
+    user_data_dir:str|Path=None, # Profile dir; `~/.cache/fastcdp/profile` if None
     headless:bool=False, # Run without a visible window?
     debug:bool=None, # Print protocol events?
     timeout:int=10, # Seconds to wait for the debug endpoint
@@ -273,28 +273,28 @@ async def eval(self:CDP,
 # %% ../nbs/00_core.ipynb #5b1d1bb4
 @patch
 @asynccontextmanager
-async def on(self:CDP, event):
+async def on(self:CDP, event:str):
     q = asyncio.Queue()
     self._events.setdefault(event, []).append(q)
     try: yield q
     finally: self._events[event].remove(q)
 
 @patch
-async def wait_event(self:CDP, event, timeout=10):
+async def wait_event(self:CDP, event:str, timeout:int=10):
     async with self.on(event) as q:
         return await asyncio.wait_for(q.get(), timeout)
 
 
 # %% ../nbs/00_core.ipynb #1d2f0ec0
 @patch
-async def wait_load(self:CDP, sid=None, timeout=10):
+async def wait_load(self:CDP, sid:str=None, timeout:int=10):
     while True:
         e = await self.wait_event('Page.lifecycleEvent', timeout=timeout)
         print(e)
         if e['params'].get('name') == 'networkIdle': return
 
 @patch
-async def wait_for(self:CDP, expr, sid=None, timeout=10):
+async def wait_for(self:CDP, expr:str, sid:str=None, timeout:int=10):
     "Wait for JS expression to be truthy, return its value"
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
@@ -304,7 +304,7 @@ async def wait_for(self:CDP, expr, sid=None, timeout=10):
     raise TimeoutError(f'Timed out waiting for: {expr}')
 
 @patch
-async def wait_for_selector(self:CDP, sel, sid=None, timeout=10):
+async def wait_for_selector(self:CDP, sel:str, sid:str=None, timeout:int=10):
     "Wait for CSS selector to match an element"
     return await self.wait_for(f'!!document.querySelector("{sel}")', sid, timeout)
 
@@ -329,10 +329,10 @@ class PageDomain:
 
 # %% ../nbs/00_core.ipynb #8fb12710
 class Page:
-    def __init__(self, cdp, t, sid, owned=False): store_attr()
+    def __init__(self, cdp:CDP, t:str, sid:str, owned:bool=False): store_attr()
 
     @classmethod
-    async def new(cls, t=None, cdp=None, **kwargs):
+    async def new(cls, t:str=None, cdp:CDP=None, **kwargs):
         if not cdp: cdp,owned = await CDP.connect(**kwargs),True
         else: owned = False
         if not t: t = await cdp.target.createTarget(url='about:blank')
@@ -363,20 +363,21 @@ class Page:
 # %% ../nbs/00_core.ipynb #bf90b19e
 @patch
 async def active_page(self:CDP):
+    "A `Page` driving the focused tab, or `None` when no tab has focus"
     for t in (await self('Target.getTargets')):
         if t['type'] != 'page': continue
         sid = await self.attach(t['targetId'])
-        if await self.eval('document.hasFocus()', sid): return t, sid
+        if await self.eval('document.hasFocus()', sid): return Page(self, t['targetId'], sid)
         await self.target.detachFromTarget(sessionId=sid)
 
 @patch(cls_method=True)
-async def remote_page(cls:CDP, port=9223, debug=None):
-    "Connect via remote debugging and return Page for the active tab"
+async def remote_page(cls:CDP, port:int=9223, debug:bool=None):
+    "Connect via remote debugging and return a `Page` for the active tab"
     cdp = await cls.remote(port=port, debug=debug)
-    result = await cdp.active_page()
-    if not result: raise RuntimeError("No focused page found")
-    t, sid = result
-    return Page(cdp, t['targetId'], sid, owned=True)
+    page = await cdp.active_page()
+    if not page: raise RuntimeError("No focused page found")
+    page.owned = True
+    return page
 
 
 # %% ../nbs/00_core.ipynb #3d0570b5
@@ -397,7 +398,7 @@ async def attach_page(self:CDP,
 
 # %% ../nbs/00_core.ipynb #0bf3d185
 @patch
-async def wait_for_ready(self:CDP, sid=None, timeout=10, idle_ms=500):
+async def wait_for_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500):
     "Wait until network is idle for idle_ms"
     await self.network.enable(sid=sid)
     deadline = asyncio.get_event_loop().time() + timeout
@@ -410,7 +411,7 @@ async def wait_for_ready(self:CDP, sid=None, timeout=10, idle_ms=500):
 
 @patch
 @asynccontextmanager
-async def wait_ready(self:CDP, sid=None, timeout=10, idle_ms=500):
+async def wait_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500):
     "Context manager: subscribes before action, waits for load+idle after"
     await self.page.setLifecycleEventsEnabled(sid=sid, enabled=True)
     async with self.on('Page.loadEventFired') as q_load:
@@ -419,13 +420,13 @@ async def wait_ready(self:CDP, sid=None, timeout=10, idle_ms=500):
         await self.wait_for_ready(sid=sid, timeout=timeout, idle_ms=idle_ms)
 
 @patch
-async def goto(self:CDP, url, sid=None, **kwargs):
+async def goto(self:CDP, url:str, sid:str=None, **kwargs):
     "Navigate to url and wait for load+idle"
     async with self.wait_ready(sid=sid, **kwargs): await self.page.navigate(sid=sid, url=url)
 
 # %% ../nbs/00_core.ipynb #2cea0ba8
 @patch
-async def screenshot(self:CDP, sid=None, full=False):
+async def screenshot(self:CDP, sid:str=None, full:bool=False):
     "Screenshot of the viewport, or the whole scrollable page if `full`"
     from IPython.display import Image
     b64 = await self.page.captureScreenshot(sid=sid, format='png', captureBeyondViewport=full)
@@ -434,7 +435,7 @@ async def screenshot(self:CDP, sid=None, full=False):
 # %% ../nbs/00_core.ipynb #786aa6ef
 class AXNode:
     "Chrome accessibility tree node with compact repr"
-    def __init__(self, raw):
+    def __init__(self, raw:dict):
         self.role = nested_idx(raw, 'role', 'value') or ''
         self.name = nested_idx(raw, 'name', 'value') or ''
         self.props = {p['name']: nested_idx(p, 'value', 'value') for p in raw.get('properties', [])}
@@ -464,7 +465,7 @@ def _simplify(node):
         return node.children  # splice children up
     return [node]
 
-def build_ax_tree(nodes):
+def build_ax_tree(nodes:list):
     "Build AXNode tree from flat CDP accessibility node list"
     by_id = {}
     for raw in nodes:
@@ -483,27 +484,27 @@ def build_ax_tree(nodes):
 
 # %% ../nbs/00_core.ipynb #2a418b3b
 @patch
-async def ax_tree(self:CDP, sid=None):
+async def ax_tree(self:CDP, sid:str=None):
     "Get accessibility tree for session"
     await self.accessibility.enable(sid=sid)
     return build_ax_tree(await self.accessibility.getFullAXTree(sid=sid))
 
 # %% ../nbs/00_core.ipynb #92b49b0c
 @patch
-def find(self:AXNode, role=None, name=None):
+def find(self:AXNode, role:str=None, name:str=None):
     "Find first descendant matching role and/or name substring"
     if (not role or role == self.role) and (not name or name in self.name): return self
     for c in self.children:
         if (r := c.find(role, name)): return r
 
 @patch
-def find_id(self:AXNode, role=None, name=None):
+def find_id(self:AXNode, role:str=None, name:str=None):
     "Find first descendant matching role and/or name substring"
     res = self.find(role, name)
     return res.backend_id if res else None
 
 @patch
-def find_all(self:AXNode, role=None, name=None):
+def find_all(self:AXNode, role:str=None, name:str=None):
     "Find all descendants matching role and/or name substring"
     res = []
     if (not role or role == self.role) and (not name or name in self.name): res.append(self)
@@ -541,13 +542,13 @@ async def click(self:CDP,
 
 # %% ../nbs/00_core.ipynb #f512a6f2
 @patch
-async def fill_text(self:CDP, backendNodeId, text, sid=None):
+async def fill_text(self:CDP, backendNodeId:int, text:str, sid:str=None):
     await self.DOM.focus(sid=sid, backendNodeId=backendNodeId)
     await self.input.insertText(sid=sid, text=text)
 
 # %% ../nbs/00_core.ipynb #99fda301
 @patch
-async def click_and_wait(self:CDP, backendNodeId, sid=None, **kwargs):
+async def click_and_wait(self:CDP, backendNodeId:int, sid:str=None, **kwargs):
     "Click element and wait for load+idle"
     async with self.wait_ready(sid=sid, **kwargs): await self.js_node_run('this.click()', backendNodeId, sid=sid)
 
@@ -567,13 +568,13 @@ def _fmt_console(m):
     return f"{p['type']}: {' '.join(str(a.get('value', a.get('description', ''))) for a in p['args'])}"
 
 @patch
-async def start_console(self:CDP, sid=None):
+async def start_console(self:CDP, sid:str=None):
     "Enable and start buffering console messages and uncaught exceptions"
     await self.runtime.enable(sid=sid)
     self._console = _EvtBuf(self, 'Runtime.consoleAPICalled', 'Runtime.exceptionThrown')
 
 @patch
-async def console(self:CDP, pattern=None, sid=None):
+async def console(self:CDP, pattern:str=None, sid:str=None):
     "Console/exception messages buffered since `start_console`, filtered by regex `pattern`"
     msgs = self._console.drain()
     if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
@@ -582,13 +583,13 @@ async def console(self:CDP, pattern=None, sid=None):
 
 # %% ../nbs/00_core.ipynb #d096afc1
 @patch
-async def start_network(self:CDP, sid=None):
+async def start_network(self:CDP, sid:str=None):
     "Enable and start buffering network responses"
     await self.network.enable(sid=sid)
     self._network = _EvtBuf(self, 'Network.responseReceived')
 
 @patch
-async def requests(self:CDP, pattern=None, sid=None):
+async def requests(self:CDP, pattern:str=None, sid:str=None):
     "(status,url,requestId) of responses buffered since `start_network`, url filtered by regex `pattern`"
     msgs = self._network.drain()
     if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
@@ -596,14 +597,14 @@ async def requests(self:CDP, pattern=None, sid=None):
     return [r for r in res if re.search(pattern, r[1])] if pattern else res
 
 @patch
-async def response_body(self:CDP, requestId, sid=None):
+async def response_body(self:CDP, requestId:str, sid:str=None):
     "Body of a response seen by `start_network`, decoded if base64"
     r = await self.network.getResponseBody(sid=sid, requestId=requestId)
     return base64.b64decode(r['body']).decode() if r['base64Encoded'] else r['body']
 
 # %% ../nbs/00_core.ipynb #ba9aa533
 @patch
-async def handle_dialogs(self:CDP, accept=True, text=None, sid=None):
+async def handle_dialogs(self:CDP, accept:bool=True, text:str=None, sid:str=None):
     "Auto-respond to JS dialogs from now on, recording (type,message) in `dialogs`"
     await self.page.enable(sid=sid)
     self.dialogs = []
@@ -621,12 +622,12 @@ async def handle_dialogs(self:CDP, accept=True, text=None, sid=None):
 
 # %% ../nbs/00_core.ipynb #3e7c8028
 @patch
-async def select_option(self:CDP, backendNodeId, value, sid=None):
+async def select_option(self:CDP, backendNodeId:int, value:str, sid:str=None):
     "Set a `<select>` element's value and fire its change event"
     await self.js_node_run(f'this.value = {json.dumps(value)}; this.dispatchEvent(new Event("change", {{bubbles:true}}))', backendNodeId, sid=sid)
 
 @patch
-async def wait_for_text(self:CDP, text, present=True, sid=None, timeout=10):
+async def wait_for_text(self:CDP, text:str, present:bool=True, sid:str=None, timeout:int=10):
     "Wait for `text` to appear in (with `present=False`, disappear from) the page body"
     expr = f'document.body.innerText.includes({json.dumps(text)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)

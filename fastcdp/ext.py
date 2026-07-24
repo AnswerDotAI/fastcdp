@@ -25,9 +25,9 @@ class ExtChannel:
 
     @classmethod
     async def listen(cls,
-        port=34654, # Port to listen on (0 picks a free one; see `port`)
-        host='127.0.0.1', # Interface to bind
-        token=None # If set, the extension must dial with a matching `?token=`
+        port:int=34654, # Port to listen on (0 picks a free one; see `port`)
+        host:str='127.0.0.1', # Interface to bind
+        token:str=None # If set, the extension must dial with a matching `?token=`
     ):
         "Start listening for the extension to dial `ws://host:port/?token=`"
         self = cls()
@@ -48,13 +48,13 @@ class ExtChannel:
                 else: await self.events.put(msg)
         except websockets.ConnectionClosed: pass
 
-    async def wait_peer(self, timeout=None):
+    async def wait_peer(self, timeout:float=None):
         "Wait until an extension has connected"
         await asyncio.wait_for(asyncio.shield(self._peer), timeout)
 
     async def send(self, **msg): await self._ws.send(json.dumps(msg))
 
-    async def request(self, timeout=15, **msg):
+    async def request(self, timeout:int=15, **msg):
         "Send `msg` with a correlation `id` and await the reply frame bearing that id"
         self._id += 1
         mid = msg['id'] = self._id
@@ -80,8 +80,8 @@ class ExtCDP(CDP):
     "CDP spoken with a companion extension, as JSON frames over a channel to it"
     @classmethod
     async def connect(cls,
-        chan, # A connected channel to the extension, e.g. an `ExtChannel`
-        debug=None # Print events as they arrive?
+        chan:ExtChannel, # A connected channel to the extension
+        debug:bool=None # Print events as they arrive?
     ):
         self = cls(debug=debug)
         self.chan = chan
@@ -90,10 +90,10 @@ class ExtCDP(CDP):
 
     @classmethod
     async def listen(cls,
-        port=34654, # Port the extension dials
-        token=None, # Shared secret the extension must present
-        timeout=None, # Max seconds to wait for the extension
-        debug=None # Print events as they arrive?
+        port:int=34654, # Port the extension dials
+        token:str=None, # Shared secret the extension must present
+        timeout:float=None, # Max seconds to wait for the extension
+        debug:bool=None # Print events as they arrive?
     ):
         "Listen on `port` and speak CDP with the first extension that dials in"
         chan = await ExtChannel.listen(port=port, token=token)
@@ -133,15 +133,19 @@ class ExtPage(Page):
         except RuntimeError: pass
 
 @patch
-async def new_page(self:ExtCDP, url='about:blank', active=False):
+async def new_page(self:ExtCDP, url:str='about:blank', active:bool=False):
     "Open a new browser tab and return a `Page` driving it"
     tid = (await self._action('new-tab', url=url, active=active))['tabId']
     await self.page.enable(sid=tid)
     return ExtPage(self, tid, tid)
 
 @patch
-async def attach_page(self:ExtCDP, tid):
-    "Attach to an existing tab and return a `Page` driving it"
+async def attach_page(self:ExtCDP, tid:int|str):
+    "Attach to an existing tab and return a `Page` driving it; takes the integer `tabId` or hex target `id` from `pages`"
+    if isinstance(tid, str):
+        tabs = {t['id']:t['tabId'] for t in await self.pages}
+        if tid not in tabs: raise KeyError(f'no tab with target id {tid}')
+        tid = tabs[tid]
     tid = (await self._action('attach', tabId=tid))['tabId']
     await self.page.enable(sid=tid)
     return ExtPage(self, tid, tid)
@@ -149,6 +153,11 @@ async def attach_page(self:ExtCDP, tid):
 @patch(as_prop=True)
 async def pages(self:ExtCDP):
     return [t for t in await self._action('get-targets') if t.get('type')=='page']
+
+@patch
+async def active_page(self:ExtCDP):
+    "A `Page` driving the frontmost tab: the active tab of the last-focused window"
+    return await self.attach_page((await self._action('active-tab'))['tabId'])
 
 # %% ../nbs/01_ext.ipynb #42263328
 def cdp_yolo():

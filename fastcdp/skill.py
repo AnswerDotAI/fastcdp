@@ -4,9 +4,15 @@ Everything is async: `await` every call (notebooks support top-level `await`).
 
 # Connecting (prerequisites)
 
-Four options; the first needs no user setup at all:
+Which browser to drive is the user's decision, never a default: driving their everyday browser means acting inside their logged-in sessions, so NEVER do that without an explicit request naming it. Some users instead keep a dedicated "CDP Chrome" (option 4) logged in to exactly the accounts they're happy to automate, so a bare "do this in the browser" has three readings -- when the task needs real logins and the user hasn't said which browser, ask; when it doesn't, `launch` a fresh instance (option 2). Once the user *has* pointed at their everyday browser, the extension (option 1) is the best way in: nothing to click or approve, connected in a few seconds.
 
-1. *Launch a fresh instance of the user's installed Chrome* (visible by default; `headless=True` for headless; `user_data_dir=` to override the default `~/.cache/fastcdp/profile`):
+1. *The user's everyday Chrome via the fastcdp companion extension* -- the kernel listens, and the extension dials in:
+
+        cdp = await ExtCDP.listen(timeout=40)
+
+   This is how an agent works in the tab the user is looking at: `await cdp.active_page()` returns that tab as a driveable `Page`, `await cdp.pages` lists every tab, and `await cdp.attach_page(tid)` drives any of them. Filling a form in the user's live session and leaving them just the submit click is one connect and three calls. Tabs a client attached are detached when it disconnects, so no debug banner outlives the work. A timeout means the extension isn't installed or enabled.
+
+2. *Launch a fresh instance of the user's installed Chrome* (visible by default; `headless=True` for headless; `user_data_dir=` to override the default `~/.cache/fastcdp/profile`) -- zero prerequisites, but its own profile, not the user's:
 
         cdp = await CDP.launch()
         ...
@@ -14,28 +20,22 @@ Four options; the first needs no user setup at all:
 
    A second `launch` on the same profile dir connects to the already-running instance (`reuse=False` to make it raise instead); `quit()` when done. NB: `launch`, `remote` and `remote_page` are patched classmethods that `doc(CDP)` currently doesn't list.
 
-2. *The user's everyday Chrome* (146+), after they enable **Allow remote debugging** in `chrome://inspect` -- use this when their logins/cookies matter:
+3. *The user's everyday Chrome without the extension* (146+), after they enable **Allow remote debugging** in `chrome://inspect`:
 
         cdp = await CDP.connect()
 
    Chrome asks the user to approve each newly connecting client, so warn them a popup is coming. A `TimeoutError` during the websocket handshake usually means the popup wasn't answered in time (~10s): ask the user to watch for it and retry.
 
-3. *A separate "debug Chrome"* -- a browser used only for automation, logged in to just what you want automated. Run `fastcdp-setup` once to create a "CDP Chrome" launcher (macOS app / Linux desktop entry / Windows shortcut) that starts it on port 9223 with its own profile; or start one by hand (since Chrome 136 a non-default profile dir is required):
+4. *A separate "debug Chrome"* -- a browser used only for automation, logged in to just what you want automated. Run `fastcdp-setup` once to create a "CDP Chrome" launcher (macOS app / Linux desktop entry / Windows shortcut) that starts it on port 9223 with its own profile; or start one by hand (since Chrome 136 a non-default profile dir is required):
 
         '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' \
           --remote-debugging-port=9223 --user-data-dir=$HOME/.cache/fastcdp/cdp-chrome
 
-   Then `cdp = await CDP.remote()` connects (no approval popups), and `page = await CDP.remote_page()` shortcuts to driving its focused tab. Both default to port 9223, matching the launcher; 9222 is avoided because a main browser with built-in debugging enabled (option 2) already holds it.
-
-4. *The user's everyday Chrome via the fastcdp companion extension* (no debugging flag, no approval popups; the extension must be installed) -- the kernel listens, and the extension dials in:
-
-        cdp = await ExtCDP.listen(timeout=40)
-
-   Typically connects within a few seconds; a timeout means the extension isn't installed or enabled. When it's present, prefer this over option 2: same logged-in browser, nothing for the user to click. `await cdp.pages` lists the browser's tabs, and `await cdp.attach_page(tid)` drives an existing one.
+   Then `cdp = await CDP.remote()` connects (no approval popups), and `page = await CDP.remote_page()` shortcuts to driving its focused tab. Both default to port 9223, matching the launcher; 9222 is avoided because a main browser with built-in debugging enabled (option 3) already holds it.
 
 # Working with pages
 
-`page = await cdp.new_page()` opens a tab and returns a `Page`: a thin proxy binding that tab's session onto everything `CDP` offers, so no `sid` threading is needed; `await cdp.attach_page(tid)` returns the same proxy for an existing tab, with tids from `await cdp.pages`. `doc(CDP)` shows the full helper inventory (navigation and waits, clicking/filling, screenshots, the debugging buffers); it all works on a `Page`. `eval` returns the expression's value as a Python object (JSON-serializable results only) and raises on a JS exception. Beyond the helpers, the *entire* protocol is exposed dynamically as `page.<domain>.<command>`; `doc()` any such method (e.g. `doc(page.dom.focus)`) for its protocol docs, and find commands with `cdp_search('querytext')`. One shape note: a command result containing a single key is unwrapped, so e.g. `getWindowBounds` returns the bounds dict itself, one level less nesting than the protocol docs describe.
+`page = await cdp.new_page()` opens a tab and returns a `Page`: a thin proxy binding that tab's session onto everything `CDP` offers, so no `sid` threading is needed; `await cdp.attach_page(tid)` returns the same proxy for an existing tab, taking either id a `pages` row carries (integer `tabId` or hex target id); `await cdp.active_page()` drives the frontmost tab (the one the user is looking at). `doc(CDP)` shows the full helper inventory (navigation and waits, clicking/filling, screenshots, the debugging buffers); it all works on a `Page`. `eval` returns the expression's value as a Python object (JSON-serializable results only) and raises on a JS exception. Beyond the helpers, the *entire* protocol is exposed dynamically as `page.<domain>.<command>`; `doc()` any such method (e.g. `doc(page.dom.focus)`) for its protocol docs, and find commands with `cdp_search('querytext')`. One shape note: a command result containing a single key is unwrapped, so e.g. `getWindowBounds` returns the bounds dict itself, one level less nesting than the protocol docs describe.
 
     page = await cdp.new_page()
     await page.goto('https://example.com')          # waits for load + network idle
