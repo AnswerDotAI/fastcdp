@@ -6,7 +6,7 @@ Docs: https://AnswerDotAI.github.io/fastcdp/core.html.md"""
 
 # %% auto #0
 __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'chrome_bin', 'Targets', 'CDPMethod', 'CDPDomain', 'PageDomain', 'Page', 'AXNode',
-           'AXTree', 'build_ax_tree', 'cdp_yolo']
+           'AXTree', 'build_ax_tree', 'AXView', 'AXMatches', 'MatchedStyles', 'cdp_yolo']
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
@@ -421,8 +421,17 @@ async def wait_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500):
 
 @patch
 async def goto(self:CDP, url:str, sid:str=None, **kwargs):
-    "Navigate to url and wait for load+idle"
-    async with self.wait_ready(sid=sid, **kwargs): await self.page.navigate(sid=sid, url=url)
+    "Navigate to url and wait for load+idle, raising on a navigation error"
+    async with self.wait_ready(sid=sid, **kwargs):
+        r = await self.page.navigate(sid=sid, url=url)
+        if isinstance(r, dict) and (err := r.get('errorText')): raise RuntimeError(f'navigate {url[:100]}: {err}')
+
+# %% ../nbs/00_core.ipynb #dbca1de3
+@patch
+async def set_content(self:CDP, html:str, sid:str=None):
+    "Replace the page's document with `html` (via `Page.setDocumentContent`); no navigation happens"
+    fid = (await self.page.getFrameTree(sid=sid))['frame']['id']
+    await self.page.setDocumentContent(sid=sid, frameId=fid, html=html)
 
 # %% ../nbs/00_core.ipynb #2cea0ba8
 @patch
@@ -433,29 +442,32 @@ async def screenshot(self:CDP, sid:str=None, full:bool=False):
     return Image(base64.b64decode(b64))
 
 # %% ../nbs/00_core.ipynb #786aa6ef
+def _render(n, depth=0, max_depth=None):
+    "Markdown lines for `n`'s subtree; `max_depth` elides deeper levels with `…`"
+    pre = '  ' * depth
+    ps = ''.join(f' `{k}={v}`' for k,v in n.props.items() if v not in (False, None, '', 'false'))
+    bid = f' [#{n.backend_id}]' if n.backend_id else ''
+    line = f'{pre}- **{n.role}** "{n.name}"{ps}{bid}'
+    if max_depth is not None and depth >= max_depth and n.children: return [line + ' …']
+    return [line] + [l for c in n.children for l in _render(c, depth+1, max_depth)]
+
 class AXNode:
     "Chrome accessibility tree node with compact repr"
     def __init__(self, raw:dict):
         self.role = nested_idx(raw, 'role', 'value') or ''
         self.name = nested_idx(raw, 'name', 'value') or ''
         self.props = {p['name']: nested_idx(p, 'value', 'value') for p in raw.get('properties', [])}
-        self.children = []
+        self.children,self.parent = [],None
         self.node_id = raw.get('nodeId')
         self.backend_id = raw.get('backendDOMNodeId')
         self.ignored = raw.get('ignored', False)
         self._raw = raw
 
-    def _repr_markdown_(self, depth=0):
-        pre = '  ' * depth
-        ps = ''.join(f' `{k}={v}`' for k,v in self.props.items() if v not in (False, None, '', 'false'))
-        bid = f' [#{self.backend_id}]' if self.backend_id else ''
-        line = f'{pre}- **{self.role}** "{self.name}"{ps}{bid}'
-        return '\n'.join([line] + [c._repr_markdown_(depth+1) for c in self.children])
-
+    def _repr_markdown_(self, depth=0): return '\n'.join(_render(self, depth))
     __str__ = __repr__ = _repr_markdown_
 
 class AXTree(AXNode):
-    def _repr_markdown_(self): return f'<div class="prose">\n\n{super()._repr_markdown_(0)}\n\n</div>'
+    def _repr_markdown_(self): return super()._repr_markdown_(0)
 
 # %% ../nbs/00_core.ipynb #ce180f22
 def _simplify(node):
@@ -464,6 +476,11 @@ def _simplify(node):
         if not node.children: return []
         return node.children  # splice children up
     return [node]
+
+def _set_parents(node):
+    for c in node.children:
+        c.parent = node
+        _set_parents(c)
 
 def build_ax_tree(nodes:list):
     "Build AXNode tree from flat CDP accessibility node list"
@@ -480,6 +497,7 @@ def build_ax_tree(nodes:list):
     if not (result := _simplify(root)): return None
     result = result[0]
     result.__class__ = AXTree
+    _set_parents(result)
     return result
 
 # %% ../nbs/00_core.ipynb #2a418b3b
@@ -509,6 +527,82 @@ def find_all(self:AXNode, role:str=None, name:str=None):
     res = []
     if (not role or role == self.role) and (not name or name in self.name): res.append(self)
     for c in self.children: res += c.find_all(role, name)
+    return res
+
+# %% ../nbs/00_core.ipynb #60c26818
+@patch
+def up(self:AXNode, n:int=1):
+    "The `n`th ancestor (`None` past the root)"
+    p = self
+    for _ in range(n): p = p and p.parent
+    return p
+
+@patch
+def path(self:AXNode):
+    "Ancestor chain as a ' > ' joined summary, root first"
+    ps = []
+    p = self.up()
+    while p is not None:
+        ps.append(f'{p.role} "{truncstr(p.name, 22)}"' if p.name else p.role)
+        p = p.up()
+    return ' > '.join(reversed(ps))
+
+class AXView(str):
+    "A rendered subtree, displayed as markdown"
+    def _repr_markdown_(self): return str(self)
+    __repr__ = str.__str__
+
+@patch
+def view(self:AXNode, depth:int=None)->AXView:
+    "Markdown subtree rooted here, to `depth` levels (`None` = unbounded)"
+    return AXView('\n'.join(_render(self, 0, depth)))
+
+class AXMatches(list):
+    "`grep` hits, one line per node: id, role, name, ancestor path"
+    def __repr__(self):
+        return '\n'.join(f'#{m.backend_id or m.node_id} {m.role} "{truncstr(m.name, 40)}" — {m.path()}' for m in self)
+
+@patch
+def grep(self:AXNode, pattern:str='', role:str=None, ignore_case:bool=True, max_results:int=20)->AXMatches:
+    "Regex-search descendant names, for orientation: hits carry ids and ancestor paths"
+    rx = re.compile(pattern, re.I if ignore_case else 0)
+    res = AXMatches()
+    def go(n):
+        if len(res) >= max_results: return
+        if n.role != 'InlineTextBox' and (not role or n.role == role) and rx.search(n.name): res.append(n)
+        for c in n.children: go(c)
+    go(self)
+    return res
+
+# %% ../nbs/00_core.ipynb #d93281e3
+@patch
+async def sel_node(self:CDP, sel:str, sid:str=None)->int:
+    "DOM `nodeId` of the first element matching CSS selector `sel`"
+    root = await self.DOM.getDocument(sid=sid)
+    nid = await self.DOM.querySelector(sid=sid, nodeId=root['nodeId'], selector=sel)
+    if not nid: raise ValueError(f'no element matches {sel!r}')
+    return nid
+
+class MatchedStyles(list):
+    "Matched rules in cascade order (winners last), one line per rule"
+    def __repr__(self):
+        return '\n'.join(f"[{r.origin}] {truncstr(r.selector, 40)} {r.css}" for r in self)
+
+@patch
+async def matched_styles(self:CDP, target:str|int, sid:str=None)->MatchedStyles:
+    "Matching CSS rules for a selector or an ax backend node id, with each rule's origin"
+    await self.DOM.enable(sid=sid)
+    await self.CSS.enable(sid=sid)
+    if isinstance(target, str): nid = await self.sel_node(target, sid=sid)
+    else:
+        await self.DOM.getDocument(sid=sid)
+        nid = (await self.DOM.pushNodesByBackendIdsToFrontend(sid=sid, backendNodeIds=[target]))[0]
+    ms = await self.CSS.getMatchedStylesForNode(sid=sid, nodeId=nid)
+    res = MatchedStyles()
+    for m in ms.get('matchedCSSRules', []):
+        r = m['rule']
+        res.append(AttrDict(origin=r['origin'], selector=r['selectorList']['text'],
+                            css=' '.join((r['style'].get('cssText') or '').split()), raw=m))
     return res
 
 # %% ../nbs/00_core.ipynb #6639fea3
@@ -551,6 +645,17 @@ async def fill_text(self:CDP, backendNodeId:int, text:str, sid:str=None):
 async def click_and_wait(self:CDP, backendNodeId:int, sid:str=None, **kwargs):
     "Click element and wait for load+idle"
     async with self.wait_ready(sid=sid, **kwargs): await self.js_node_run('this.click()', backendNodeId, sid=sid)
+
+# %% ../nbs/00_core.ipynb #e7343b80
+@patch
+async def wait_for_ax(self:CDP, role:str=None, name:str=None, sid:str=None, timeout:int=10):
+    "Poll `ax_tree` until a node matches `role`/`name` (as in `find`); returns the fresh tree"
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        t = await self.ax_tree(sid=sid)
+        if t is not None and t.find(role, name): return t
+        await asyncio.sleep(0.2)
+    raise TimeoutError(f'Timed out waiting for ax node role={role!r} name={name!r}')
 
 # %% ../nbs/00_core.ipynb #90320ba6
 class _EvtBuf:
@@ -637,4 +742,4 @@ def cdp_yolo():
     "Allow all CDP classes in safepyrun"
     from pyskills import allow
     allow({CDP:..., CDPDomain:..., CDPMethod:...})
-    allow({PageDomain:..., Page:..., AXNode:..., AXTree:...})
+    allow({PageDomain:..., Page:..., AXNode:..., AXTree:..., AXMatches:..., AXView:..., MatchedStyles:...})

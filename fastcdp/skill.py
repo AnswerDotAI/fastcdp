@@ -10,7 +10,7 @@ Which browser to drive is the user's decision, never a default: driving their ev
 
         cdp = await ExtCDP.listen(timeout=40)
 
-   This is how an agent works in the tab the user is looking at: `await cdp.active_page()` returns that tab as a driveable `Page`, `await cdp.pages` lists every tab, and `await cdp.attach_page(tid)` drives any of them. Filling a form in the user's live session and leaving them just the submit click is one connect and three calls. Tabs a client attached are detached when it disconnects, so no debug banner outlives the work. A timeout means the extension isn't installed or enabled.
+   This is how an agent works in the tab the user is looking at: `await cdp.active_page()` returns that tab as a driveable `Page`, `await cdp.pages` lists every tab, and `await cdp.attach_page(tid)` drives any of them. Filling a form in the user's live session and leaving them just the submit click is one connect and three calls. Tabs a client attached are detached when it disconnects, so no debug banner outlives the work. A timeout means the extension isn't installed or enabled. `chrome://` pages (including a fresh New Tab) can't be attached: when the user's active tab is one, `new_page()` your own tab instead of fighting it.
 
 2. *Launch a fresh instance of the user's installed Chrome* (visible by default; `headless=True` for headless; `user_data_dir=` to override the default `~/.cache/fastcdp/profile`) -- zero prerequisites, but its own profile, not the user's:
 
@@ -35,7 +35,7 @@ Which browser to drive is the user's decision, never a default: driving their ev
 
 # Working with pages
 
-`page = await cdp.new_page()` opens a tab and returns a `Page`: a thin proxy binding that tab's session onto everything `CDP` offers, so no `sid` threading is needed; `await cdp.attach_page(tid)` returns the same proxy for an existing tab, taking either id a `pages` row carries (integer `tabId` or hex target id); `await cdp.active_page()` drives the frontmost tab (the one the user is looking at). `doc(CDP)` shows the full helper inventory (navigation and waits, clicking/filling, screenshots, the debugging buffers); it all works on a `Page`. `eval` returns the expression's value as a Python object (JSON-serializable results only) and raises on a JS exception. Beyond the helpers, the *entire* protocol is exposed dynamically as `page.<domain>.<command>`; `doc()` any such method (e.g. `doc(page.dom.focus)`) for its protocol docs, and find commands with `cdp_search('querytext')`. One shape note: a command result containing a single key is unwrapped, so e.g. `getWindowBounds` returns the bounds dict itself, one level less nesting than the protocol docs describe.
+`page = await cdp.new_page()` opens a tab and returns a `Page`: a thin proxy binding that tab's session onto everything `CDP` offers, so no `sid` threading is needed; `await cdp.attach_page(tid)` returns the same proxy for an existing tab, taking either id a `pages` row carries (integer `tabId` or hex target id); `await cdp.active_page()` drives the frontmost tab (the one the user is looking at). `doc(CDP)` shows the full helper inventory (navigation and waits, clicking/filling, screenshots, the debugging buffers); it all works on a `Page`. `eval` returns the expression's value as a Python object (JSON-serializable results only) and raises on a JS exception. Beyond the helpers, the *entire* protocol is exposed dynamically as `page.<domain>.<command>`; `doc()` any such method (e.g. `doc(page.dom.focus)`) for its protocol docs, and find commands with `cdp_search('querytext')` (whole-protocol description search) or `pyskills.xdir(page.css, 'style')` (filter one domain's command names). One shape note: a command result containing a single key is unwrapped, so e.g. `getWindowBounds` returns the bounds dict itself, one level less nesting than the protocol docs describe.
 
     page = await cdp.new_page()
     await page.goto('https://example.com')          # waits for load + network idle
@@ -45,7 +45,9 @@ Which browser to drive is the user's decision, never a default: driving their ev
     img  = await page.screenshot(full=True)
     await page.close()
 
-`ax_tree()` is the main way to *read* a page: display it bare, and use `find`/`find_id`/`find_all` (role and/or name substring) to target elements by backend node id.
+`ax_tree()` is the main way to *read* a page. On a page you already know, display it bare and use `find`/`find_id`/`find_all` (role and/or name substring) to target elements by backend node id. On an unfamiliar or large page, don't read the whole tree: `root.grep(pattern)` regex-searches every node name and shows one line per hit -- backend id, role, name, and ancestor path -- so it locates; then `hit.up()` climbs from a leaf to its enclosing widget and `node.view(depth=2)` renders just that subtree. grep to locate, view to read, find_id to act.
+
+Waiting is built in -- never `sleep` and re-read. `goto`/`click_and_wait` cover navigations; for content that changes *in place* (tab panels, htmx swaps, SPAs), `wait_for_ax(role, name)` polls until a matching node exists and returns the fresh tree, and `wait_for_text`/`wait_for_selector`/`wait_for(js_expr)` wait on page content directly. `set_content(html)` replaces the document wholesale -- the way to put fixture HTML in a page, since `data:` URLs can't be navigated to on the extension path (`goto` raises `net::ERR_ABORTED`).
 
 # Debugging an app
 
@@ -59,6 +61,15 @@ Call the `start_*` helpers right after creating the page -- CDP only delivers ev
     page.dialogs                                    # dialogs seen (auto-answered)
 
 Without `handle_dialogs`, a JS `alert`/`confirm` blocks its page (and whatever `eval` triggered it) indefinitely.
+
+# Live CSS and design iteration
+
+Design tweaks iterate fastest in the live page, with no file writes and no reloads. Read computed values with `eval` and `getComputedStyle`; try a change by injecting a `<style>` tag (or setting `el.style`); read back, adjust, and copy into the real stylesheet once it looks right. `emulation.setDeviceMetricsOverride(width=390, height=844, deviceScaleFactor=2, mobile=True)` tests responsive layouts, `clearDeviceMetricsOverride` restores, and screenshots capture at the overridden size. That covers everything except *why* a style won, which computed values can't answer. `matched_styles` can:
+
+    await page.matched_styles('table caption')            # every matching rule, cascade order, winners last
+    await page.matched_styles(root.find_id('button'))     # same, straight from an ax find/grep hit
+
+That is the DevTools Styles panel as a query: one line per rule with its origin (`user-agent` vs `regular`), selector, and declarations, and `.raw` on each row keeps the full protocol record. It takes a selector or an ax backend id, bridging the two id spaces (ax speaks *backend* ids; the `DOM`/`CSS` domains want front-end `nodeId`s, which `sel_node(sel)` resolves). `CSS.setStyleTexts` edits an existing rule in place, for when stacking override styles would muddy the experiment.
 
 # Gotchas
 
