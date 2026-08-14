@@ -6,13 +6,14 @@ Docs: https://AnswerDotAI.github.io/fastcdp/core.html.md"""
 
 # %% auto #0
 __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'chrome_bin', 'Targets', 'CDPMethod', 'CDPDomain', 'PageDomain', 'Page', 'AXNode',
-           'AXTree', 'build_ax_tree', 'AXView', 'AXMatches', 'MatchedStyles', 'cdp_yolo']
+           'AXTree', 'build_ax_tree', 'AXView', 'AXMatches', 'MatchedStyles', 'WSFrame', 'WSFrames', 'cdp_yolo']
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
 from fastcore.net import is_port_free, wait_port_free_async
 import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
+from html.parser import HTMLParser
 
 # %% ../nbs/00_core.ipynb #930c2391
 if '__file__' not in globals():
@@ -706,6 +707,65 @@ async def response_body(self:CDP, requestId:str, sid:str=None):
     "Body of a response seen by `start_network`, decoded if base64"
     r = await self.network.getResponseBody(sid=sid, requestId=requestId)
     return base64.b64decode(r['body']).decode() if r['base64Encoded'] else r['body']
+
+# %% ../nbs/00_core.ipynb #12ab6af6
+_void_els = {'area','base','br','col','embed','hr','img','input','link','meta','source','track','wbr'}
+
+class _TopEls(HTMLParser):
+    "Collect (tag, id, hx-swap-oob) for each top-level element of a fragment"
+    def __init__(self):
+        super().__init__()
+        self.els,self._depth = [],0
+    def handle_starttag(self, tag, attrs):
+        if self._depth == 0:
+            d = dict(attrs)
+            self.els.append((tag, d.get('id'), d.get('hx-swap-oob')))
+        if tag not in _void_els: self._depth += 1
+    def handle_endtag(self, tag):
+        if tag not in _void_els: self._depth = max(0, self._depth-1)
+
+class WSFrame:
+    "One captured websocket frame"
+    def __init__(self,
+        sent:bool, # Did the page send it (else receive)?
+        ts:float, # The event's timestamp, seconds
+        payload:str, # The frame's text payload
+    ): store_attr()
+    @property
+    def elements(self):
+        "The (tag, id, hx-swap-oob) of each top-level element: the units htmx swaps"
+        p = _TopEls()
+        p.feed(self.payload)
+        return p.els
+    def __repr__(self):
+        d = '→' if self.sent else '←'
+        els = self.elements
+        s = ' '.join(f"{t}#{i or ''}" + (f'[{sw}]' if sw else '') for t,i,sw in els) if els else self.payload[:80].replace('\n', ' ')
+        return f'{d} {s}'
+
+# %% ../nbs/00_core.ipynb #60f25a30
+class WSFrames(list):
+    "Captured frames, one per line with the gap since the frame before"
+    def __repr__(self):
+        res,t0 = [],None
+        for f in self:
+            res.append(f"{'' if t0 is None else f'+{f.ts-t0:.3f}s '}{f!r}")
+            t0 = f.ts
+        return '\n'.join(res) or '(no frames)'
+
+@patch
+async def start_ws(self:CDP, sid:str=None):
+    "Enable and start buffering websocket frames, both directions"
+    await self.network.enable(sid=sid)
+    self._ws = _EvtBuf(self, 'Network.webSocketFrameSent', 'Network.webSocketFrameReceived')
+
+@patch
+async def ws_frames(self:CDP, pattern:str=None, sid:str=None)->WSFrames:
+    "Frames buffered since `start_ws`, payload filtered by regex `pattern`"
+    msgs = self._ws.drain()
+    if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
+    res = WSFrames(WSFrame(m['method'].endswith('Sent'), m['params']['timestamp'], m['params']['response']['payloadData']) for m in msgs)
+    return WSFrames(f for f in res if re.search(pattern, f.payload)) if pattern else res
 
 # %% ../nbs/00_core.ipynb #ba9aa533
 @patch
