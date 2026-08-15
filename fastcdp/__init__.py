@@ -2,7 +2,7 @@
 
 Modules:
 
-- `fastcdp.skill`: Drive Chrome via the DevTools Protocol: navigate, click and fill pages, read them as an LLM-friendly accessibility tree, buffer console/network/dialog activity for debugging, and call any raw CDP command."""
+- `fastcdp.skill`: Work with Chrome through the DevTools Protocol: open pages, click and type, read a page as an accessibility tree, keep a log of console and network activity for debugging, and call any CDP command."""
 
 __version__ = "0.0.8"
 from .core import *
