@@ -10,6 +10,7 @@ __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'chrome_bin', 'Targets', 'CDPMet
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
+from fastcore.meta import delegates
 from fastcore.net import is_port_free, wait_port_free_async
 import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
@@ -52,7 +53,10 @@ _chrome_paths = dict(
     Linux=['.config/google-chrome/DevToolsActivePort',
            '.config/chromium/DevToolsActivePort'])
 
-def cdp_conninfo(p:str=None, d:str|Path=None):
+def cdp_conninfo(
+    p:str=None, # Contents of a `DevToolsActivePort` file
+    d:str|Path=None, # Profile dir whose `DevToolsActivePort` to read
+):
     "Connection info from contents `p`, profile dir `d`, or the default Chrome profile"
     if d: p = (Path(d)/'DevToolsActivePort').read_text()
     if not p:
@@ -71,8 +75,13 @@ class CDP:
         store_attr()
 
     @classmethod
-    async def connect(cls, p:str=None, wsconn:str=None, debug:bool=None):
-        if wsconn is None: wsconn = cdp_conninfo()
+    async def connect(cls,
+        p:str=None, # Contents of a `DevToolsActivePort` file, for `cdp_conninfo`
+        wsconn:str=None, # Websocket URL or port to connect to; from `cdp_conninfo` if None
+        debug:bool=None, # Print each event as it arrives?
+    ):
+        "Connect to a running Chrome and start the read loop"
+        if wsconn is None: wsconn = cdp_conninfo(p)
         self = cls(wsconn, debug=debug)
         url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
         self.ws = await websockets.connect(url)
@@ -136,7 +145,10 @@ class CDP:
 
 # %% ../nbs/00_core.ipynb #1e09344e
 @patch(cls_method=True)
-async def remote(cls:CDP, port:int=9223, debug:bool=None):
+async def remote(cls:CDP,
+    port:int=9223, # Remote debugging port of the running Chrome
+    debug:bool=None, # Print each event as it arrives?
+):
     "Connect via Chrome remote debugging HTTP endpoint"
     async with httpx.AsyncClient() as client:
         url = (await client.get(f'http://localhost:{port}/json/version')).json()['webSocketDebuggerUrl']
@@ -305,9 +317,15 @@ async def wait_for(self:CDP, expr:str, sid:str=None, timeout:int=10):
     raise TimeoutError(f'Timed out waiting for: {expr}')
 
 @patch
-async def wait_for_selector(self:CDP, sel:str, sid:str=None, timeout:int=10):
-    "Wait for CSS selector to match an element"
-    return await self.wait_for(f'!!document.querySelector("{sel}")', sid, timeout)
+async def wait_for_selector(self:CDP,
+    sel:str, # CSS selector to watch
+    present:bool=True, # Wait for a match to appear (True) or for none to remain (False)
+    sid:str=None, # Session to wait in
+    timeout:int=10, # Seconds to wait before raising
+):
+    "Wait for CSS selector `sel` to match an element (with `present=False`, to match none)"
+    expr = f'!!document.querySelector({json.dumps(sel)})'
+    return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
 
 # %% ../nbs/00_core.ipynb #e9e3f54d
 def _copy_meta(src, dest):
@@ -333,7 +351,13 @@ class Page:
     def __init__(self, cdp:CDP, t:str, sid:str, owned:bool=False): store_attr()
 
     @classmethod
-    async def new(cls, t:str=None, cdp:CDP=None, **kwargs):
+    @delegates(CDP.connect)
+    async def new(cls,
+        t:str=None, # Target id of an existing tab; a new blank tab if None
+        cdp:CDP=None, # Connection to use; a new one from `CDP.connect(**kwargs)` if None, closed with the page
+        **kwargs
+    ):
+        "A `Page` for tab `t`, on connection `cdp`"
         if not cdp: cdp,owned = await CDP.connect(**kwargs),True
         else: owned = False
         if not t: t = await cdp.target.createTarget(url='about:blank')
@@ -372,7 +396,10 @@ async def active_page(self:CDP):
         await self.target.detachFromTarget(sessionId=sid)
 
 @patch(cls_method=True)
-async def remote_page(cls:CDP, port:int=9223, debug:bool=None):
+async def remote_page(cls:CDP,
+    port:int=9223, # Remote debugging port of the running Chrome
+    debug:bool=None, # Print each event as it arrives?
+):
     "Connect via remote debugging and return a `Page` for the active tab"
     cdp = await cls.remote(port=port, debug=debug)
     page = await cdp.active_page()
@@ -399,8 +426,12 @@ async def attach_page(self:CDP,
 
 # %% ../nbs/00_core.ipynb #0bf3d185
 @patch
-async def wait_for_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500):
-    "Wait until network is idle for idle_ms"
+async def wait_for_ready(self:CDP,
+    sid:str=None, # Session to watch
+    timeout:int=10, # Seconds to wait before raising
+    idle_ms:int=500, # Quiet time on the network that counts as idle
+):
+    "Wait until the network has been quiet for `idle_ms`"
     await self.network.enable(sid=sid)
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
@@ -412,7 +443,11 @@ async def wait_for_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500
 
 @patch
 @asynccontextmanager
-async def wait_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500):
+async def wait_ready(self:CDP,
+    sid:str=None, # Session to watch
+    timeout:int=10, # Seconds to wait for load and idle before raising
+    idle_ms:int=500, # Quiet time on the network that counts as idle
+):
     "Context manager: subscribes before action, waits for load+idle after"
     await self.page.setLifecycleEventsEnabled(sid=sid, enabled=True)
     async with self.on('Page.loadEventFired') as q_load:
@@ -421,7 +456,12 @@ async def wait_ready(self:CDP, sid:str=None, timeout:int=10, idle_ms:int=500):
         await self.wait_for_ready(sid=sid, timeout=timeout, idle_ms=idle_ms)
 
 @patch
-async def goto(self:CDP, url:str, sid:str=None, **kwargs):
+@delegates(CDP.wait_ready)
+async def goto(self:CDP,
+    url:str, # URL to navigate to
+    sid:str=None, # Session to navigate
+    **kwargs
+):
     "Navigate to url and wait for load+idle, raising on a navigation error"
     async with self.wait_ready(sid=sid, **kwargs):
         r = await self.page.navigate(sid=sid, url=url)
@@ -510,20 +550,29 @@ async def ax_tree(self:CDP, sid:str=None):
 
 # %% ../nbs/00_core.ipynb #92b49b0c
 @patch
-def find(self:AXNode, role:str=None, name:str=None):
+def find(self:AXNode,
+    role:str=None, # Accessibility role to match exactly, e.g. 'button'
+    name:str=None, # Substring of the accessible name to match
+):
     "Find first descendant matching role and/or name substring"
     if (not role or role == self.role) and (not name or name in self.name): return self
     for c in self.children:
         if (r := c.find(role, name)): return r
 
 @patch
-def find_id(self:AXNode, role:str=None, name:str=None):
-    "Find first descendant matching role and/or name substring"
+def find_id(self:AXNode,
+    role:str=None, # Accessibility role to match exactly, e.g. 'button'
+    name:str=None, # Substring of the accessible name to match
+)->int: # The backend node id, for `click`, `fill_text` and friends; None if no match
+    "Find first descendant matching role and/or name substring, and return its backend id"
     res = self.find(role, name)
     return res.backend_id if res else None
 
 @patch
-def find_all(self:AXNode, role:str=None, name:str=None):
+def find_all(self:AXNode,
+    role:str=None, # Accessibility role to match exactly, e.g. 'button'
+    name:str=None, # Substring of the accessible name to match
+):
     "Find all descendants matching role and/or name substring"
     res = []
     if (not role or role == self.role) and (not name or name in self.name): res.append(self)
@@ -564,7 +613,12 @@ class AXMatches(list):
         return '\n'.join(f'#{m.backend_id or m.node_id} {m.role} "{truncstr(m.name, 40)}" — {m.path()}' for m in self)
 
 @patch
-def grep(self:AXNode, pattern:str='', role:str=None, ignore_case:bool=True, max_results:int=20)->AXMatches:
+def grep(self:AXNode,
+    pattern:str='', # Regex over node names
+    role:str=None, # Only nodes with this accessibility role, when given
+    ignore_case:bool=True, # Case-insensitive match?
+    max_results:int=20, # Stop after this many hits
+)->AXMatches:
     "Regex-search descendant names, for orientation: hits carry ids and ancestor paths"
     rx = re.compile(pattern, re.I if ignore_case else 0)
     res = AXMatches()
@@ -637,19 +691,34 @@ async def click(self:CDP,
 
 # %% ../nbs/00_core.ipynb #f512a6f2
 @patch
-async def fill_text(self:CDP, backendNodeId:int, text:str, sid:str=None):
+async def fill_text(self:CDP,
+    backendNodeId:int, # The text control, e.g. from `AXNode.find_id`
+    text:str, # Text to type into it
+    sid:str=None, # Session the node lives in
+):
+    "Focus a text control and type `text` into it"
     await self.DOM.focus(sid=sid, backendNodeId=backendNodeId)
     await self.input.insertText(sid=sid, text=text)
 
 # %% ../nbs/00_core.ipynb #99fda301
 @patch
-async def click_and_wait(self:CDP, backendNodeId:int, sid:str=None, **kwargs):
+@delegates(CDP.wait_ready)
+async def click_and_wait(self:CDP,
+    backendNodeId:int, # The element to click, e.g. from `AXNode.find_id`
+    sid:str=None, # Session the node lives in
+    **kwargs
+):
     "Click element and wait for load+idle"
     async with self.wait_ready(sid=sid, **kwargs): await self.js_node_run('this.click()', backendNodeId, sid=sid)
 
 # %% ../nbs/00_core.ipynb #e7343b80
 @patch
-async def wait_for_ax(self:CDP, role:str=None, name:str=None, sid:str=None, timeout:int=10):
+async def wait_for_ax(self:CDP,
+    role:str=None, # Accessibility role to match exactly, as in `find`
+    name:str=None, # Substring of the accessible name to match, as in `find`
+    sid:str=None, # Session to wait in
+    timeout:int=10, # Seconds to wait before raising
+):
     "Poll `ax_tree` until a node matches `role`/`name` (as in `find`); returns the fresh tree"
     deadline = asyncio.get_event_loop().time() + timeout
     while asyncio.get_event_loop().time() < deadline:
@@ -760,16 +829,38 @@ async def start_ws(self:CDP, sid:str=None):
     self._ws = _EvtBuf(self, 'Network.webSocketFrameSent', 'Network.webSocketFrameReceived')
 
 @patch
-async def ws_frames(self:CDP, pattern:str=None, sid:str=None)->WSFrames:
-    "Frames buffered since `start_ws`, payload filtered by regex `pattern`"
+async def ws_frames(self:CDP,
+    pattern:str=None, # Regex the payload must match
+    sent:bool=None, # True for frames the page sent, False for received, None for both
+    sid:str=None, # Session whose frames to read
+)->WSFrames:
+    "Frames buffered since `start_ws`; a snapshot, so to read a frame that may still be in flight use `wait_for_frame`"
     msgs = self._ws.drain()
     if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
     res = WSFrames(WSFrame(m['method'].endswith('Sent'), m['params']['timestamp'], m['params']['response']['payloadData']) for m in msgs)
+    if sent is not None: res = WSFrames(f for f in res if f.sent == sent)
     return WSFrames(f for f in res if re.search(pattern, f.payload)) if pattern else res
+@patch
+async def wait_for_frame(self:CDP,
+    pattern:str, # Regex the payload must match
+    sent:bool=None, # True for frames the page sent, False for received, None for both
+    sid:str=None, # Session whose frames to read
+    timeout:int=10, # Seconds to wait before raising
+)->WSFrames:
+    "Poll `ws_frames` until a frame matches; returns the matching frames"
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        if (res := await self.ws_frames(pattern, sent, sid)): return res
+        await asyncio.sleep(0.05)
+    raise TimeoutError(f'Timed out waiting for a websocket frame matching: {pattern}')
 
 # %% ../nbs/00_core.ipynb #ba9aa533
 @patch
-async def handle_dialogs(self:CDP, accept:bool=True, text:str=None, sid:str=None):
+async def handle_dialogs(self:CDP,
+    accept:bool=True, # Answer each dialog with OK (True) or Cancel (False)
+    text:str=None, # Text to enter into a `prompt` dialog
+    sid:str=None, # Session whose dialogs to answer
+):
     "Auto-respond to JS dialogs from now on, recording (type,message) in `dialogs`"
     await self.page.enable(sid=sid)
     self.dialogs = []
@@ -787,15 +878,43 @@ async def handle_dialogs(self:CDP, accept:bool=True, text:str=None, sid:str=None
 
 # %% ../nbs/00_core.ipynb #3e7c8028
 @patch
-async def select_option(self:CDP, backendNodeId:int, value:str, sid:str=None):
+async def select_option(self:CDP,
+    backendNodeId:int, # The `<select>` node, e.g. from `AXNode.find_id`
+    value:str, # Option value to select
+    sid:str=None, # Session the node lives in
+):
     "Set a `<select>` element's value and fire its change event"
     await self.js_node_run(f'this.value = {json.dumps(value)}; this.dispatchEvent(new Event("change", {{bubbles:true}}))', backendNodeId, sid=sid)
 
 @patch
-async def wait_for_text(self:CDP, text:str, present:bool=True, sid:str=None, timeout:int=10):
-    "Wait for `text` to appear in (with `present=False`, disappear from) the page body"
-    expr = f'document.body.innerText.includes({json.dumps(text)})'
+async def wait_for_text(self:CDP,
+    text:str, # Text to look for
+    present:bool=True, # Wait for it to appear (True) or to go away (False)
+    sel:str=None, # CSS selector of the element to read; the page body if None
+    sid:str=None, # Session to wait in
+    timeout:int=10, # Seconds to wait before raising
+):
+    "Wait for `text` to appear in (or, with `present=False`, disappear from) the page body or one element"
+    src = f'(document.querySelector({json.dumps(sel)})?.textContent ?? "")' if sel else 'document.body.innerText'
+    expr = f'{src}.includes({json.dumps(text)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
+
+# %% ../nbs/00_core.ipynb #e4877f59
+@patch
+async def sel_text(self:CDP, sel:str, sid:str=None):
+    "`textContent` of the first element matching CSS selector `sel`, or None"
+    return await self.eval(f'document.querySelector({json.dumps(sel)})?.textContent', sid)
+
+@patch
+async def sel_exists(self:CDP, sel:str, sid:str=None)->bool:
+    "Whether any element matches CSS selector `sel`"
+    return await self.eval(f'!!document.querySelector({json.dumps(sel)})', sid)
+
+@patch
+async def sel_click(self:CDP, sel:str, sid:str=None):
+    "`click` the first element matching CSS selector `sel`"
+    node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
+    await self.click(node['backendNodeId'], sid=sid)
 
 # %% ../nbs/00_core.ipynb #904883ee
 def cdp_yolo():
