@@ -20,11 +20,11 @@ Which browser to drive is the user's decision, never a default: driving their ev
 
    A second `launch` on the same profile dir connects to the already-running instance (`reuse=False` to make it raise instead); `quit()` when done. NB: `launch`, `remote` and `remote_page` are patched classmethods that `doc(CDP)` currently doesn't list.
 
-3. *The user's everyday Chrome without the extension* (146+), after they enable **Allow remote debugging** in `chrome://inspect`:
+3. *The user's everyday Chrome without the extension* (146+), after they enable **Allow remote debugging** in `chrome://inspect/#remote-debugging`:
 
         cdp = await CDP.connect()
 
-   Chrome asks the user to approve each newly connecting client, so warn them a popup is coming. A `TimeoutError` during the websocket handshake usually means the popup wasn't answered in time (~10s): ask the user to watch for it and retry.
+   Chrome asks the user to approve each newly connecting client, so warn them a popup is coming. `connect` waits up to 60 seconds for approval. A `TimeoutError` during the websocket handshake usually means the popup wasn't answered in time: ask the user to watch for it and retry. `active_page()` skips `chrome://` and `devtools://` targets; create a new page when it returns `None`.
 
 4. *A separate "debug Chrome"* -- a browser used only for automation, logged in to just what you want automated. Run `fastcdp-setup` once to create a "CDP Chrome" launcher (macOS app / Linux desktop entry / Windows shortcut) that starts it on port 9223 with its own profile; or start one by hand (since Chrome 136 a non-default profile dir is required):
 

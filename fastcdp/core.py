@@ -79,12 +79,13 @@ class CDP:
         p:str=None, # Contents of a `DevToolsActivePort` file, for `cdp_conninfo`
         wsconn:str=None, # Websocket URL or port to connect to; from `cdp_conninfo` if None
         debug:bool=None, # Print each event as it arrives?
+        timeout:int=60, # Seconds to wait for Chrome's connection approval
     ):
         "Connect to a running Chrome and start the read loop"
         if wsconn is None: wsconn = cdp_conninfo(p)
         self = cls(wsconn, debug=debug)
         url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
-        self.ws = await websockets.connect(url, max_size=None)
+        self.ws = await websockets.connect(url, max_size=None, open_timeout=timeout)
         self._reader = asyncio.create_task(self._read_loop())
         self._keep = asyncio.create_task(self._keepalive())
         return self
@@ -388,9 +389,9 @@ class Page:
 # %% ../nbs/00_core.ipynb #bf90b19e
 @patch
 async def active_page(self:CDP):
-    "A `Page` driving the focused tab, or `None` when no tab has focus"
+    "A `Page` driving the focused attachable tab, or `None` when none has focus"
     for t in (await self('Target.getTargets')):
-        if t['type'] != 'page': continue
+        if t['type'] != 'page' or t['url'].startswith(('chrome://', 'devtools://')): continue
         sid = await self.attach(t['targetId'])
         if await self.eval('document.hasFocus()', sid): return Page(self, t['targetId'], sid)
         await self.target.detachFromTarget(sessionId=sid)
