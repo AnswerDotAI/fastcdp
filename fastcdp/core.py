@@ -84,7 +84,7 @@ class CDP:
         if wsconn is None: wsconn = cdp_conninfo(p)
         self = cls(wsconn, debug=debug)
         url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
-        self.ws = await websockets.connect(url)
+        self.ws = await websockets.connect(url, max_size=None)
         self._reader = asyncio.create_task(self._read_loop())
         self._keep = asyncio.create_task(self._keepalive())
         return self
@@ -448,12 +448,10 @@ async def wait_ready(self:CDP,
     timeout:int=10, # Seconds to wait for load and idle before raising
     idle_ms:int=500, # Quiet time on the network that counts as idle
 ):
-    "Context manager: subscribes before action, waits for load+idle after"
-    await self.page.setLifecycleEventsEnabled(sid=sid, enabled=True)
-    async with self.on('Page.loadEventFired') as q_load:
-        yield
-        await asyncio.wait_for(q_load.get(), timeout=timeout)
-        await self.wait_for_ready(sid=sid, timeout=timeout, idle_ms=idle_ms)
+    "Context manager: wait for the document and network to become ready after an action"
+    yield
+    await self.wait_for("document.readyState === 'complete'", sid=sid, timeout=timeout)
+    await self.wait_for_ready(sid=sid, timeout=timeout, idle_ms=idle_ms)
 
 @patch
 @delegates(CDP.wait_ready)
@@ -696,8 +694,8 @@ async def fill_text(self:CDP,
     text:str, # Text to type into it
     sid:str=None, # Session the node lives in
 ):
-    "Focus a text control and type `text` into it"
-    await self.DOM.focus(sid=sid, backendNodeId=backendNodeId)
+    "Replace the contents of a text control"
+    await self.js_node_run('this.focus(); this.select()', backendNodeId, sid=sid)
     await self.input.insertText(sid=sid, text=text)
 
 # %% ../nbs/00_core.ipynb #99fda301
