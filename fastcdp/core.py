@@ -894,7 +894,7 @@ async def wait_for_text(self:CDP,
     timeout:int=10, # Seconds to wait before raising
 ):
     "Wait for `text` to appear in (or, with `present=False`, disappear from) the page body or one element"
-    src = f'(document.querySelector({json.dumps(sel)})?.textContent ?? "")' if sel else 'document.body.innerText'
+    src = f'(document.querySelector({json.dumps(sel)})?.textContent ?? "")' if sel else '(document.body?.innerText ?? "")'
     expr = f'{src}.includes({json.dumps(text)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
 
