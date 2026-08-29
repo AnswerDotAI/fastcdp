@@ -6,7 +6,8 @@ Docs: https://AnswerDotAI.github.io/fastcdp/core.html.md"""
 
 # %% auto #0
 __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'chrome_bin', 'Targets', 'CDPMethod', 'CDPDomain', 'PageDomain', 'Page', 'AXNode',
-           'AXTree', 'build_ax_tree', 'AXView', 'AXMatches', 'MatchedStyles', 'WSFrame', 'WSFrames', 'cdp_yolo']
+           'AXTree', 'build_ax_tree', 'AXView', 'AXMatches', 'MatchedStyles', 'WSFrame', 'WSFrames', 'Rung', 'Rungs',
+           'cdp_yolo']
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
@@ -287,17 +288,17 @@ async def eval(self:CDP,
 # %% ../nbs/00_core.ipynb #5b1d1bb4
 @patch
 @asynccontextmanager
-async def on(self:CDP, event:str):
+async def on(self:CDP, *events:str):
     q = asyncio.Queue()
-    self._events.setdefault(event, []).append(q)
+    for e in events: self._events.setdefault(e, []).append(q)
     try: yield q
-    finally: self._events[event].remove(q)
+    finally:
+        for e in events: self._events[e].remove(q)
 
 @patch
 async def wait_event(self:CDP, event:str, timeout:int=10):
     async with self.on(event) as q:
         return await asyncio.wait_for(q.get(), timeout)
-
 
 # %% ../nbs/00_core.ipynb #1d2f0ec0
 @patch
@@ -327,6 +328,11 @@ async def wait_for_selector(self:CDP,
     "Wait for CSS selector `sel` to match an element (with `present=False`, to match none)"
     expr = f'!!document.querySelector({json.dumps(sel)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
+
+@patch
+async def wait_defined(self:CDP, name:str, sid:str=None, timeout:int=10):
+    "Wait until the global `name` exists and is truthy"
+    await self.wait_for(f'!!window[{json.dumps(name)}]', sid, timeout)
 
 # %% ../nbs/00_core.ipynb #e9e3f54d
 def _copy_meta(src, dest):
@@ -372,6 +378,7 @@ class Page:
         o = getattr(self.cdp, name)
         if isinstance(o, CDPDomain): return PageDomain(self.sid, o)
         if not callable(o): return o
+        if not inspect.iscoroutinefunction(o): return _copy_meta(o, lambda *a, **kw: o(*a, sid=self.sid, **kw))
         async def _f(*a, **kw): return await o(*a, sid=self.sid, **kw)
         return _copy_meta(o, _f)
 
@@ -411,11 +418,15 @@ async def remote_page(cls:CDP,
 
 # %% ../nbs/00_core.ipynb #3d0570b5
 @patch
-async def new_page(self:CDP):
+async def new_page(self:CDP,
+    background:bool=False, # Open the tab without focusing it, so the browser window is not raised
+):
     "Create a new tab, return Page"
-    t = await self.target.createTarget(url='about:blank')
+    t = await self.target.createTarget(url='about:blank', background=background)
     await asyncio.sleep(0.1)
-    return await Page.new(t, self)
+    p = await Page.new(t, self)
+    if background: await p.emulation.setFocusEmulationEnabled(enabled=True)  # unthrottle rendering in the unfocused tab
+    return p
 
 # %% ../nbs/00_core.ipynb #8930594b
 @patch
@@ -426,20 +437,34 @@ async def attach_page(self:CDP,
     return await Page.new(tid, self)
 
 # %% ../nbs/00_core.ipynb #0bf3d185
+_ready_evs = ('Network.requestWillBeSent','Network.loadingFinished','Network.loadingFailed',
+              'Network.webSocketFrameSent','Network.webSocketFrameReceived')
+
 @patch
 async def wait_for_ready(self:CDP,
     sid:str=None, # Session to watch
     timeout:int=10, # Seconds to wait before raising
-    idle_ms:int=500, # Quiet time on the network that counts as idle
+    idle_ms:int=100, # Quiet time on the network and websocket that counts as idle
 ):
-    "Wait until the network has been quiet for `idle_ms`"
+    "Wait until no request is in flight and the network and websocket have been quiet for `idle_ms`"
     await self.network.enable(sid=sid)
-    deadline = asyncio.get_event_loop().time() + timeout
-    while asyncio.get_event_loop().time() < deadline:
-        async with self.on('Network.requestWillBeSent') as q:
-            try: await asyncio.wait_for(q.get(), timeout=idle_ms/1000)
-            except asyncio.TimeoutError: return
-    raise TimeoutError('Timed out waiting for network idle')
+    async with self.on(*_ready_evs) as q: await self._idle_wait(q, timeout, idle_ms)
+
+
+@patch
+async def _idle_wait(self:CDP, q, timeout, idle_ms):
+    live,deadline = set(),asyncio.get_event_loop().time() + timeout
+    while True:
+        left = deadline - asyncio.get_event_loop().time()
+        if left <= 0: raise TimeoutError(f'Timed out waiting for network idle ({len(live)} requests in flight)')
+        try: m = await asyncio.wait_for(q.get(), timeout=left if live else min(left, idle_ms/1000))
+        except asyncio.TimeoutError:
+            if not live: return
+            continue
+        p = m['params']
+        if m['method'] != 'Network.requestWillBeSent': live.discard(p['requestId'])
+        elif p['request']['url'].startswith('http') and p.get('type') not in ('WebSocket','EventSource'):
+            live.add(p['requestId'])
 
 
 @patch
@@ -447,12 +472,14 @@ async def wait_for_ready(self:CDP,
 async def wait_ready(self:CDP,
     sid:str=None, # Session to watch
     timeout:int=10, # Seconds to wait for load and idle before raising
-    idle_ms:int=500, # Quiet time on the network that counts as idle
+    idle_ms:int=100, # Quiet time on the network and websocket that counts as idle
 ):
-    "Context manager: wait for the document and network to become ready after an action"
-    yield
-    await self.wait_for("document.readyState === 'complete'", sid=sid, timeout=timeout)
-    await self.wait_for_ready(sid=sid, timeout=timeout, idle_ms=idle_ms)
+    "Context manager: subscribe before the action it wraps, then wait for the document and network to become ready"
+    await self.network.enable(sid=sid)
+    async with self.on(*_ready_evs) as q:
+        yield
+        await self.wait_for("document.readyState === 'complete'", sid=sid, timeout=timeout)
+        await self._idle_wait(q, timeout, idle_ms)
 
 @patch
 @delegates(CDP.wait_ready)
@@ -685,8 +712,17 @@ async def click(self:CDP,
     backendNodeId:int, # Node, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
 ):
-    "Click a DOM node"
-    await self.js_node_run('this.click()', backendNodeId, sid=sid)
+    "Click a node's center as a person would: scroll it into view, move the mouse there (revealing hover-gated UI), then press and release"
+    await self.js_node_run('this.scrollIntoView({block: "center", behavior: "instant"})', backendNodeId, sid=sid)
+    async def _center():
+        q = (await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId))['content']
+        return (q[0]+q[4])/2, (q[1]+q[5])/2
+    x,y = await _center()
+    await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
+    await self.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))', sid)
+    x,y = await _center()  # hover-gated UI renders on the move, which can change the box
+    for t in ('mousePressed', 'mouseReleased'):
+        await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
 
 # %% ../nbs/00_core.ipynb #f512a6f2
 @patch
@@ -698,6 +734,48 @@ async def fill_text(self:CDP,
     "Replace the contents of a text control"
     await self.js_node_run('this.focus(); this.select()', backendNodeId, sid=sid)
     await self.input.insertText(sid=sid, text=text)
+
+# %% ../nbs/00_core.ipynb #008b674e
+_keys = dict(
+    Enter=('Enter',13,'\r'), Tab=('Tab',9,'\t'), Escape=('Escape',27,''), Backspace=('Backspace',8,''),
+    Delete=('Delete',46,''), ArrowLeft=('ArrowLeft',37,''), ArrowUp=('ArrowUp',38,''),
+    ArrowRight=('ArrowRight',39,''), ArrowDown=('ArrowDown',40,''), Home=('Home',36,''),
+    End=('End',35,''), PageUp=('PageUp',33,''), PageDown=('PageDown',34,''), **{' ': ('Space',32,' '), '-': ('Minus',189,'-'), '=': ('Equal',187,'='), '.': ('Period',190,'.'), ',': ('Comma',188,','), '/': ('Slash',191,'/'), ';': ('Semicolon',186,';')})
+_edit_cmds = dict(a='selectAll', c='copy', x='cut', v='paste', z='undo', y='redo')
+
+@patch
+async def press(self:CDP,
+    key:str, # A single character, or a key name from `_keys` such as 'Enter'
+    sid:str=None, # Session to send to
+    ctrl:bool=False, # Hold Control
+    shift:bool=False, # Hold Shift
+    alt:bool=False, # Hold Alt/Option
+    meta:bool=False, # Hold Meta/Command
+    mod:bool=False, # Hold the platform primary modifier: Command on macOS, Control elsewhere
+):
+    "Send one key press, with modifiers, as real `keydown`/`keyup` events"
+    if mod:
+        if platform.system() == 'Darwin': meta = True
+        else: ctrl = True
+    mods = alt*1 + ctrl*2 + meta*4 + shift*8
+    if key in _keys: code,vk,text = _keys[key]
+    elif len(key) == 1:
+        code = f'Key{key.upper()}' if key.isalpha() else f'Digit{key}' if key.isdigit() else ''
+        vk,text = (ord(key.upper()) if key.isalnum() else 0),key
+    else: raise ValueError(f"unknown key {key!r}; known: {', '.join(_keys)}")
+    if mods not in (0,8): text = ''
+    kw = dict(sid=sid, modifiers=mods, key=key, code=code, windowsVirtualKeyCode=vk, nativeVirtualKeyCode=vk)
+    cmds = [_edit_cmds[key]] if meta and key in _edit_cmds else []
+    await self.input.dispatchKeyEvent(type='keyDown', text=text, commands=cmds, **kw)
+    await self.input.dispatchKeyEvent(type='keyUp', **kw)
+
+@patch
+async def type(self:CDP,
+    text:str, # Characters to press, one key event pair each
+    sid:str=None, # Session to send to
+):
+    "Press each character of `text` in turn; `fill_text` is faster when no per-key handling matters"
+    for ch in text: await self.press(ch, sid=sid)
 
 # %% ../nbs/00_core.ipynb #99fda301
 @patch
@@ -853,6 +931,44 @@ async def wait_for_frame(self:CDP,
         await asyncio.sleep(0.05)
     raise TimeoutError(f'Timed out waiting for a websocket frame matching: {pattern}')
 
+# %% ../nbs/00_core.ipynb #3a8381b9
+@patch
+async def evidence(self:CDP, pattern:str=None, sid:str=None):
+    "Debugging buffers as one report: console tail, error responses (urls matching `pattern`), and ws frames, for each capture that was started"
+    res = []
+    if hasattr(self, '_console'): res.append(f'console: {(await self.console(sid=sid))[-8:]}')
+    if hasattr(self, '_network'):
+        errs = [r for r in await self.requests(pattern, sid=sid) if r[0] >= 400]
+        res.append(f'error responses: {errs}')
+    if hasattr(self, '_ws'): res.append(f'frames:\n{await self.ws_frames(sid=sid)!r}')
+    return '\n'.join(res)
+
+class Rung:
+    "Async context: a failure inside re-raises named after the rung, with the page's `evidence` attached"
+    def __init__(self,
+        name:str, # Name of this step, quoted in the failure
+        page=None, # `Page` (or `CDP`) whose debugging buffers join the failure; None attaches nothing
+        times:list=None, # Log gaining `(name, seconds)` on exit; `Rungs` supplies a shared one
+    ): store_attr()
+    async def __aenter__(self):
+        self.t0 = asyncio.get_event_loop().time()
+        return self
+    async def __aexit__(self, typ, val, tb):
+        if self.times is not None: self.times.append((self.name, asyncio.get_event_loop().time()-self.t0))
+        if typ is None: return
+        ev = await self.page.evidence() if self.page is not None else ''
+        raise AssertionError(f'rung {self.name!r}: {val}\n{ev}') from val
+
+class Rungs:
+    "Rung factory sharing one page and a timing log; display it for per-rung times"
+    def __init__(self,
+        page=None, # `Page` (or `CDP`) passed to every rung
+    ): self.page,self.times = page,[]
+    def __call__(self,
+        name:str, # Name of the step, as in `Rung`
+    ): return Rung(name, self.page, times=self.times)
+    def __repr__(self): return '\n'.join(f'{secs:7.3f} {nm}' for nm,secs in self.times)
+
 # %% ../nbs/00_core.ipynb #ba9aa533
 @patch
 async def handle_dialogs(self:CDP,
@@ -914,6 +1030,43 @@ async def sel_click(self:CDP, sel:str, sid:str=None):
     "`click` the first element matching CSS selector `sel`"
     node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
     await self.click(node['backendNodeId'], sid=sid)
+
+# %% ../nbs/00_core.ipynb #e8dd8522
+@patch
+async def hover(self:CDP,
+    backendNodeId:int, # Node to hover, e.g. from `AXNode.find_id`
+    sid:str=None, # Session the node lives in
+):
+    "Move the mouse to a node's center, firing its hover events and CSS `:hover`"
+    box = await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId)
+    q = box['content']
+    await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=(q[0]+q[4])/2, y=(q[1]+q[5])/2)
+
+@patch
+async def sel_hover(self:CDP, sel:str, sid:str=None):
+    "`hover` the first element matching CSS selector `sel`"
+    node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
+    await self.hover(node['backendNodeId'], sid=sid)
+
+@patch
+async def sel_attr(self:CDP, sel:str, name:str, sid:str=None):
+    "Attribute `name` of the first element matching CSS selector `sel`, or None"
+    return await self.eval(f'document.querySelector({json.dumps(sel)})?.getAttribute({json.dumps(name)})', sid)
+
+@patch
+async def sel_count(self:CDP, sel:str, sid:str=None)->int:
+    "Number of elements matching CSS selector `sel`"
+    return await self.eval(f'document.querySelectorAll({json.dumps(sel)}).length', sid)
+
+@patch
+async def sel_map(self:CDP, sel:str, fn:str, sid:str=None)->list:
+    "JS function `fn` applied to every element matching CSS selector `sel`, in document order"
+    return await self.eval(f'[...document.querySelectorAll({json.dumps(sel)})].map({fn})', sid)
+
+@patch
+async def sel_attrs(self:CDP, sel:str, name:str, sid:str=None)->list:
+    "Attribute `name` of every element matching CSS selector `sel`, in document order"
+    return await self.sel_map(sel, f'e => e.getAttribute({json.dumps(name)})', sid=sid)
 
 # %% ../nbs/00_core.ipynb #904883ee
 def cdp_yolo():

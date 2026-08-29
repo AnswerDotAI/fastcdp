@@ -47,7 +47,9 @@ Which browser to drive is the user's decision, never a default: driving their ev
 
 `ax_tree()` is the main way to *read* a page. On a page you already know, display it bare and use `find`/`find_id`/`find_all` (role and/or name substring) to target elements by backend node id. On an unfamiliar or large page, don't read the whole tree: `root.grep(pattern)` regex-searches every node name and shows one line per hit -- backend id, role, name, and ancestor path -- so it locates; then `hit.up()` climbs from a leaf to its enclosing widget and `node.view(depth=2)` renders just that subtree. grep to locate, view to read, find_id to act.
 
-Waiting is built in -- never `sleep` and re-read. `goto`/`click_and_wait` cover navigations; for content that changes *in place* (tab panels, htmx swaps, SPAs), `wait_for_ax(role, name)` polls until a matching node exists and returns the fresh tree, and `wait_for_text`/`wait_for_selector`/`wait_for(js_expr)` wait on page content directly. `set_content(html)` replaces the document wholesale -- the way to put fixture HTML in a page, since `data:` URLs can't be navigated to on the extension path (`goto` raises `net::ERR_ABORTED`).
+Keyboard input has two levels. `fill_text(backend_id, text)` replaces a control's contents without key events. `press('Enter', mod=True)` sends a real `keydown`/`keyup` pair (modifier booleans: `ctrl`/`shift`/`alt`/`meta`, or `mod` for the platform primary), and `type(text)` presses each character, for UI that reacts per keystroke.
+
+Waiting is built in -- never `sleep` and re-read. `goto`/`click_and_wait` cover navigations; for content that changes *in place* (tab panels, htmx swaps, SPAs), `wait_for_ax(role, name)` polls until a matching node exists and returns the fresh tree, and `wait_for_text`/`wait_for_selector`/`wait_for(js_expr)` wait on page content directly, and `wait_defined(name)` waits for a global to appear. `set_content(html)` replaces the document wholesale -- the way to put fixture HTML in a page, since `data:` URLs can't be navigated to on the extension path (`goto` raises `net::ERR_ABORTED`).
 
 # Debugging an app
 
@@ -61,6 +63,9 @@ Call the `start_*` helpers right after creating the page -- CDP only delivers ev
     page.dialogs                                    # dialogs seen (auto-answered)
 
 Without `handle_dialogs`, a JS `alert`/`confirm` blocks its page (and whatever `eval` triggered it) indefinitely.
+
+For tests against a live app, `Rung` names each step: a failure inside the context re-raises with the rung's name and `page.evidence()`, a report from whichever debugging buffers were started. `hover`/`sel_hover` engage CSS `:hover` and mouse events, and `sel_attr`/`sel_count` read an attribute or count matches by selector, and `sel_map`/`sel_attrs` map a JS function or attribute over every match.
+`Rungs(page)` is the factory form: it binds the page once and logs each rung's duration, and its display is the timing profile.
 
 # Live CSS and design iteration
 
