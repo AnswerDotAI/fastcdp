@@ -20,7 +20,7 @@ def chrome_path():
     if sys == 'Darwin': return Path('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome')
     if sys == 'Windows':
         cands = [Path(os.environ.get(v, ''))/'Google/Chrome/Application/chrome.exe'
-                 for v in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA')]
+            for v in ('PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA')]
         if (p := first(cands, Path.is_file)): return p
         raise FileNotFoundError('chrome.exe not found')
     for n in ('google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'):
@@ -62,6 +62,7 @@ def _linux_app(chrome, name, port, profile, dest):
     shutil.copy(files('fastcdp')/'icons/cdp-chrome.png', ic)
     desk = dest/'applications'/f'{_ident(name)}.desktop'
     desk.parent.mkdir(parents=True, exist_ok=True)
+    # chkstyle: ignore-node
     desk.write_text(f'''[Desktop Entry]
 Type=Application
 Name={name}
