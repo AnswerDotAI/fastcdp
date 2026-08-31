@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.10
+
+### New Features
+
+- Bound CDP commands and make navigation waits explicit ([#17](https://github.com/AnswerDotAI/fastcdp/pull/17)), thanks to [@jph00](https://github.com/jph00)
+
+
 ## 0.0.9
 
 ### New Features
