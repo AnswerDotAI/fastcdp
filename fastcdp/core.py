@@ -36,23 +36,22 @@ def cdp_search(q:str):
     for d in _cdp_domains:
         for cmd in d.get('commands', []):
             desc = cmd.get('description', '')
-            if q in cmd['name'].lower() or q in desc.lower():
-                res.append(f"{d['domain']}.{cmd['name']}: {desc[:120]}")
+            if q in cmd['name'].lower() or q in desc.lower(): res.append(f"{d['domain']}.{cmd['name']}: {desc[:120]}")
         for evt in d.get('events', []):
             desc = evt.get('description', '')
-            if q in evt['name'].lower() or q in desc.lower():
-                res.append(f"  evt {d['domain']}.{evt['name']}: {desc[:120]}")
+            if q in evt['name'].lower() or q in desc.lower(): res.append(f"  evt {d['domain']}.{evt['name']}: {desc[:120]}")
     return '\n'.join(res)
 
 # %% ../nbs/00_core.ipynb #65ed8e9a
 def _lower1(s): return s[0].lower() + s[1:]
 def _upper1(s): return s[0].upper() + s[1:]
 
+# chkstyle: ignore-node
 _chrome_paths = dict(
     Darwin=['Library/Application Support/Google/Chrome/DevToolsActivePort',
-            'Library/Application Support/Chromium/DevToolsActivePort'],
+        'Library/Application Support/Chromium/DevToolsActivePort'],
     Linux=['.config/google-chrome/DevToolsActivePort',
-           '.config/chromium/DevToolsActivePort'])
+        '.config/chromium/DevToolsActivePort'])
 
 def cdp_conninfo(
     p:str=None, # Contents of a `DevToolsActivePort` file
@@ -71,7 +70,7 @@ def cdp_conninfo(
 # %% ../nbs/00_core.ipynb #48f443ee
 class CDP:
     "Chrome DevTools Protocol connection with event support"
-    def __init__(self, wsconn:str=None, debug:bool=False):
+    def __init__(self, wsconn:str=None, debug:bool=False, command_timeout:float=10):
         self._id,self._pending,self._events = 0,{},{}
         store_attr()
 
@@ -80,11 +79,12 @@ class CDP:
         p:str=None, # Contents of a `DevToolsActivePort` file, for `cdp_conninfo`
         wsconn:str=None, # Websocket URL or port to connect to; from `cdp_conninfo` if None
         debug:bool=None, # Print each event as it arrives?
+        command_timeout:float=10, # Seconds to wait for each protocol command
         timeout:int=60, # Seconds to wait for Chrome's connection approval
     ):
         "Connect to a running Chrome and start the read loop"
         if wsconn is None: wsconn = cdp_conninfo(p)
-        self = cls(wsconn, debug=debug)
+        self = cls(wsconn, debug=debug, command_timeout=command_timeout)
         url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
         self.ws = await websockets.connect(url, max_size=None, open_timeout=timeout)
         self._reader = asyncio.create_task(self._read_loop())
@@ -115,17 +115,20 @@ class CDP:
     async def _send(self, msg):
         "Send one command frame and return its reply frame; transports override this"
         self._id += 1
-        msg['id'] = self._id
+        mid = msg['id'] = self._id
         fut = asyncio.get_event_loop().create_future()
-        self._pending[self._id] = fut
-        await self.ws.send(json.dumps(msg))
-        return await fut
+        self._pending[mid] = fut
+        try:
+            await self.ws.send(json.dumps(msg))
+            return await fut
+        finally: self._pending.pop(mid, None)
 
     async def __call__(self, method:str, sid:str=None, **params):
         msg = dict(method=method)
         if params: msg['params'] = params
         if sid: msg['sessionId'] = sid
-        r = await self._send(msg)
+        try: r = await asyncio.wait_for(self._send(msg), self.command_timeout)
+        except TimeoutError as e: raise TimeoutError(f'{method} timed out after {self.command_timeout:g}s') from e
         if 'error' in r: raise RuntimeError(f"{method}: {r['error']}")
         res = r.get('result', {})
         return first(res.values()) if len(res) == 1 else res
@@ -157,6 +160,7 @@ async def remote(cls:CDP,
     return await cls.connect(wsconn=url, debug=debug)
 
 # %% ../nbs/00_core.ipynb #65405bf6
+# chkstyle: ignore-node
 _chrome_bins = dict(Darwin=['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium'],
     Linux=['google-chrome', 'chromium', 'chromium-browser'])
@@ -297,17 +301,9 @@ async def on(self:CDP, *events:str):
 
 @patch
 async def wait_event(self:CDP, event:str, timeout:int=10):
-    async with self.on(event) as q:
-        return await asyncio.wait_for(q.get(), timeout)
+    async with self.on(event) as q: return await asyncio.wait_for(q.get(), timeout)
 
 # %% ../nbs/00_core.ipynb #1d2f0ec0
-@patch
-async def wait_load(self:CDP, sid:str=None, timeout:int=10):
-    while True:
-        e = await self.wait_event('Page.lifecycleEvent', timeout=timeout)
-        print(e)
-        if e['params'].get('name') == 'networkIdle': return
-
 @patch
 async def wait_for(self:CDP, expr:str, sid:str=None, timeout:int=10):
     "Wait for JS expression to be truthy, return its value"
@@ -338,8 +334,7 @@ async def wait_defined(self:CDP, name:str, sid:str=None, timeout:int=10):
 def _copy_meta(src, dest):
     if hasattr(src, '__doc__'): dest.__doc__ = src.__doc__
     if hasattr(src, '__signature__'):
-        dest.__signature__ = src.__signature__.replace(
-            parameters=[p for p in src.__signature__.parameters.values() if p.name != 'sid'])
+        dest.__signature__ = src.__signature__.replace(parameters=[p for p in src.__signature__.parameters.values() if p.name != 'sid'])
     return dest
 
 # %% ../nbs/00_core.ipynb #1d63dba1
@@ -438,60 +433,90 @@ async def attach_page(self:CDP,
 
 # %% ../nbs/00_core.ipynb #0bf3d185
 _ready_evs = ('Network.requestWillBeSent','Network.loadingFinished','Network.loadingFailed',
-              'Network.webSocketFrameSent','Network.webSocketFrameReceived')
-
-@patch
-async def wait_for_ready(self:CDP,
-    sid:str=None, # Session to watch
-    timeout:int=10, # Seconds to wait before raising
-    idle_ms:int=100, # Quiet time on the network and websocket that counts as idle
-):
-    "Wait until no request is in flight and the network and websocket have been quiet for `idle_ms`"
-    await self.network.enable(sid=sid)
-    async with self.on(*_ready_evs) as q: await self._idle_wait(q, timeout, idle_ms)
+    'Network.webSocketFrameSent','Network.webSocketFrameReceived')
+_nav_evs = ('Page.frameNavigated','Page.navigatedWithinDocument')
 
 
-@patch
-async def _idle_wait(self:CDP, q, timeout, idle_ms):
-    live,deadline = set(),asyncio.get_event_loop().time() + timeout
+def _check_wait(wait):
+    if wait not in (None, 'load', 'idle'): raise ValueError("wait must be 'load', 'idle', or None")
+
+
+async def _event_wait(q, sid, deadline, pred, what):
     while True:
         left = deadline - asyncio.get_event_loop().time()
-        if left <= 0: raise TimeoutError(f'Timed out waiting for network idle ({len(live)} requests in flight)')
-        try: m = await asyncio.wait_for(q.get(), timeout=left if live else min(left, idle_ms/1000))
-        except asyncio.TimeoutError:
-            if not live: return
-            continue
+        if left <= 0: raise TimeoutError(f'Timed out waiting for {what}')
+        try: m = await asyncio.wait_for(q.get(), left)
+        except asyncio.TimeoutError as e: raise TimeoutError(f'Timed out waiting for {what}') from e
+        if (sid is None or m.get('sessionId') == sid) and pred(m): return m
+
+# %% ../nbs/00_core.ipynb #853cc171
+@patch
+async def _idle_wait(self:CDP, q, sid, deadline, idle_ms):
+    live,clock = set(),asyncio.get_event_loop().time
+    quiet_at = clock() + idle_ms/1000
+    while True:
+        now = clock()
+        if not live and now >= quiet_at: return
+        if now >= deadline: raise TimeoutError(f'Timed out waiting for network idle ({len(live)} requests in flight)')
+        try: m = await asyncio.wait_for(q.get(), min(deadline, quiet_at if not live else deadline)-now)
+        except asyncio.TimeoutError as e:
+            if not live and clock() >= quiet_at: return
+            raise TimeoutError(f'Timed out waiting for network idle ({len(live)} requests in flight)') from e
+        if sid is not None and m.get('sessionId') != sid: continue
         p = m['params']
-        if m['method'] != 'Network.requestWillBeSent': live.discard(p['requestId'])
-        elif p['request']['url'].startswith('http') and p.get('type') not in ('WebSocket','EventSource'):
-            live.add(p['requestId'])
+        if m['method'] == 'Network.requestWillBeSent':
+            if p['request']['url'].startswith(('http://','https://')) and p.get('type') not in ('WebSocket','EventSource'): live.add(p['requestId'])
+        else: live.discard(p['requestId'])
+        quiet_at = clock() + idle_ms/1000
 
 
+# %% ../nbs/00_core.ipynb #c126d3d4
 @patch
 @asynccontextmanager
-async def wait_ready(self:CDP,
-    sid:str=None, # Session to watch
-    timeout:int=10, # Seconds to wait for load and idle before raising
-    idle_ms:int=100, # Quiet time on the network and websocket that counts as idle
+async def expect_navigation(self:CDP,
+    sid:str=None, # Session whose top frame must navigate
+    wait:str|None='load', # 'load', 'idle', or None to stop after navigation begins
+    timeout:float=10, # Maximum seconds for the action and requested wait
+    idle_ms:int=100, # Quiet time after load when `wait='idle'`
 ):
-    "Context manager: subscribe before the action it wraps, then wait for the document and network to become ready"
-    await self.network.enable(sid=sid)
-    async with self.on(*_ready_evs) as q:
+    "Subscribe before an action, require a top-frame navigation, then perform the requested wait"
+    _check_wait(wait)
+    await self.page.enable(sid=sid)
+    if wait == 'idle': await self.network.enable(sid=sid)
+    ft = await self.page.getFrameTree(sid=sid)
+    fid = ft['frame']['id']
+    deadline = asyncio.get_event_loop().time() + timeout
+    async with self.on(*_nav_evs) as nq, self.on('Page.loadEventFired') as lq, self.on(*_ready_evs) as iq:
         yield
-        await self.wait_for("document.readyState === 'complete'", sid=sid, timeout=timeout)
-        await self._idle_wait(q, timeout, idle_ms)
+        def _ours(m):
+            p = m['params']
+            nid = p['frame']['id'] if m['method'] == 'Page.frameNavigated' else p['frameId']
+            return nid == fid
+        nav = await _event_wait(nq, sid, deadline, _ours, 'navigation')
+        if wait is not None and nav['method'] == 'Page.frameNavigated': await _event_wait(lq, sid, deadline, noop, 'page load')
+        if wait == 'idle': await self._idle_wait(iq, sid, deadline, idle_ms)
 
+
+# %% ../nbs/00_core.ipynb #f345a618
 @patch
-@delegates(CDP.wait_ready)
 async def goto(self:CDP,
     url:str, # URL to navigate to
     sid:str=None, # Session to navigate
-    **kwargs
+    wait:str|None='load', # 'load' (default), 'idle', or None
+    timeout:float=10, # Maximum seconds for navigation and the requested wait
+    idle_ms:int=100, # Quiet time after load when `wait='idle'`
 ):
-    "Navigate to url and wait for load+idle, raising on a navigation error"
-    async with self.wait_ready(sid=sid, **kwargs):
+    "Navigate to `url`, perform the requested wait, and raise on a navigation error"
+    _check_wait(wait)
+    await self.page.enable(sid=sid)
+    if wait == 'idle': await self.network.enable(sid=sid)
+    deadline = asyncio.get_event_loop().time() + timeout
+    async with self.on('Page.loadEventFired') as lq, self.on(*_ready_evs) as iq:
         r = await self.page.navigate(sid=sid, url=url)
         if isinstance(r, dict) and (err := r.get('errorText')): raise RuntimeError(f'navigate {url[:100]}: {err}')
+        if wait is not None and isinstance(r, dict) and r.get('loaderId'): await _event_wait(lq, sid, deadline, noop, 'page load')
+        if wait == 'idle': await self._idle_wait(iq, sid, deadline, idle_ms)
+
 
 # %% ../nbs/00_core.ipynb #dbca1de3
 @patch
@@ -666,8 +691,7 @@ async def sel_node(self:CDP, sel:str, sid:str=None)->int:
 
 class MatchedStyles(list):
     "Matched rules in cascade order (winners last), one line per rule"
-    def __repr__(self):
-        return '\n'.join(f"[{r.origin}] {truncstr(r.selector, 40)} {r.css}" for r in self)
+    def __repr__(self): return '\n'.join(f"[{r.origin}] {truncstr(r.selector, 40)} {r.css}" for r in self)
 
 @patch
 async def matched_styles(self:CDP, target:str|int, sid:str=None)->MatchedStyles:
@@ -683,7 +707,7 @@ async def matched_styles(self:CDP, target:str|int, sid:str=None)->MatchedStyles:
     for m in ms.get('matchedCSSRules', []):
         r = m['rule']
         res.append(AttrDict(origin=r['origin'], selector=r['selectorList']['text'],
-                            css=' '.join((r['style'].get('cssText') or '').split()), raw=m))
+            css=' '.join((r['style'].get('cssText') or '').split()), raw=m))
     return res
 
 # %% ../nbs/00_core.ipynb #6639fea3
@@ -695,8 +719,7 @@ async def js_node(self:CDP,
 ):
     "Call function `fn` on a DOM node, returning the protocol result"
     obj = await self.DOM.resolveNode(sid=sid, backendNodeId=backendNodeId)
-    return await self.runtime.callFunctionOn(sid=sid, functionDeclaration=fn,
-                                              objectId=obj['objectId'])
+    return await self.runtime.callFunctionOn(sid=sid, functionDeclaration=fn, objectId=obj['objectId'])
 
 @patch
 async def js_node_run(self:CDP,
@@ -711,18 +734,31 @@ async def js_node_run(self:CDP,
 async def click(self:CDP,
     backendNodeId:int, # Node, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
+    timeout:float=5, # Maximum seconds for the whole click
 ):
-    "Click a node's center as a person would: scroll it into view, move the mouse there (revealing hover-gated UI), then press and release"
-    await self.js_node_run('this.scrollIntoView({block: "center", behavior: "instant"})', backendNodeId, sid=sid)
-    async def _center():
-        q = (await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId))['content']
-        return (q[0]+q[4])/2, (q[1]+q[5])/2
-    x,y = await _center()
-    await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
-    await self.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))', sid)
-    x,y = await _center()  # hover-gated UI renders on the move, which can change the box
-    for t in ('mousePressed', 'mouseReleased'):
-        await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
+    "Click a node with real pointer events, bounded by `timeout`"
+    async def _click():
+        await self.js_node_run('this.scrollIntoView({block: "center", behavior: "instant"})', backendNodeId, sid=sid)
+        async def _center():
+            q = (await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId))['content']
+            return (q[0]+q[4])/2, (q[1]+q[5])/2
+        x,y = await _center()
+        await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
+        x,y = await _center()  # hover-gated UI renders on the move, which can change the box
+        for t in ('mousePressed', 'mouseReleased'):
+            await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
+    try: await asyncio.wait_for(_click(), timeout)
+    except TimeoutError as e: raise TimeoutError(f'click timed out after {timeout:g}s') from e
+
+@patch
+async def dom_click(self:CDP,
+    backendNodeId:int, # Node, e.g. from `AXNode.find_id`
+    sid:str=None, # Session the node lives in
+    timeout:float=5, # Maximum seconds to wait
+):
+    "Activate a node with its DOM `click`, bounded by `timeout`"
+    try: await asyncio.wait_for(self.js_node_run('this.click()', backendNodeId, sid=sid), timeout)
+    except TimeoutError as e: raise TimeoutError(f'dom_click timed out after {timeout:g}s') from e
 
 # %% ../nbs/00_core.ipynb #f512a6f2
 @patch
@@ -779,14 +815,14 @@ async def type(self:CDP,
 
 # %% ../nbs/00_core.ipynb #99fda301
 @patch
-@delegates(CDP.wait_ready)
+@delegates(CDP.expect_navigation)
 async def click_and_wait(self:CDP,
     backendNodeId:int, # The element to click, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
     **kwargs
 ):
-    "Click element and wait for load+idle"
-    async with self.wait_ready(sid=sid, **kwargs): await self.js_node_run('this.click()', backendNodeId, sid=sid)
+    "Click with real pointer events and wait for its navigation"
+    async with self.expect_navigation(sid=sid, **kwargs): await self.click(backendNodeId, sid=sid)
 
 # %% ../nbs/00_core.ipynb #e7343b80
 @patch

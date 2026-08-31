@@ -5,7 +5,9 @@
 
 fastcdp provides an async Python client for the [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/) (CDP) over WebSocket. It auto-discovers Chrome’s debug port, loads the full protocol schema from bundled JSON files, and exposes every CDP domain as a Python attribute with auto-generated signatures and docstrings — e.g. `await cdp.page.navigate(url=...)`.
 
-It includes a [`Page`](https://AnswerDotAI.github.io/fastcdp/core.html#page) class for tab-scoped operations, event subscription via `cdp.on()`/`cdp.wait_event()`, navigation helpers (`goto`, `wait_for_selector`, `wait_for`), screenshot capture, and accessibility tree access. A [`cdp_search`](https://AnswerDotAI.github.io/fastcdp/core.html#cdp_search) utility lets you search CDP commands by name or description. For use inside [safepyrun](https://github.com/AnswerDotAI/safepyrun) sandboxes, [`cdp_yolo()`](https://AnswerDotAI.github.io/fastcdp/core.html#cdp_yolo) registers all CDP classes.
+It can drive a Chrome it launches itself, one you started with a debug port, your everyday browser via Chrome’s built-in remote debugging, or — with the companion [fastcdp-chrome](https://github.com/AnswerDotAI/fastcdp-chrome) extension — your everyday browser with no flags or popups at all.
+
+It includes a [`Page`](https://AnswerDotAI.github.io/fastcdp/core.html#page) class for tab-scoped operations, event subscription via `cdp.on()`/`cdp.wait_event()`, explicit navigation waits (`goto`, `expect_navigation`), content waits (`wait_for_selector`, `wait_for`), screenshot capture, and accessibility tree access. A [`cdp_search`](https://AnswerDotAI.github.io/fastcdp/core.html#cdp_search) utility lets you search CDP commands by name or description. For use inside [safepyrun](https://github.com/AnswerDotAI/safepyrun) sandboxes, [`cdp_yolo()`](https://AnswerDotAI.github.io/fastcdp/core.html#cdp_yolo) registers all CDP classes.
 
 ## Installation
 
@@ -20,6 +22,15 @@ $ pip install fastcdp
 ``` python
 from fastcdp import *
 ```
+
+There are four ways to get connected (the `fastcdp.skill` module doc gives the full decision matrix):
+
+- `cdp = await CDP.launch()` — start a fresh, throwaway instance of your installed Chrome; zero setup.
+- `cdp = await CDP.connect()` — attach to your everyday Chrome (146+) after enabling **Allow remote debugging** in `chrome://inspect/#remote-debugging`; Chrome gives you 60 seconds to approve each new client.
+- `cdp = await CDP.remote()` — attach to a “debug Chrome” on `remote`’s default port 9223; `fastcdp-setup` creates a launcher for exactly such a browser.
+- `cdp = await ExtCDP.listen()` — wait for the [fastcdp-chrome](https://github.com/AnswerDotAI/fastcdp-chrome) extension to dial in from your everyday browser: no flags, no popups.
+
+This walkthrough uses `connect`:
 
 Chrome 146+ has built-in remote debugging support. Navigate to `chrome://inspect/#remote-debugging` and enable “Allow remote debugging for this browser instance”:
 
@@ -63,10 +74,10 @@ The [`Page`](https://AnswerDotAI.github.io/fastcdp/core.html#page) class wraps a
 
 ``` python
 page = await cdp.new_page()
-await page.goto('https://httpbin.org/forms/post')
+await page.goto('https://httpbingo.org/forms/post')
 ```
 
-You can `wait_for` any js expression to be truthy, and have it returned:
+`goto` waits for the document’s `load` event by default. Pass `wait='idle'` when initial network activity must also settle, or `wait=None` when the next application-specific content wait is a better definition of ready. You can `wait_for` any JS expression to become truthy and have its value returned:
 
 ``` python
 await page.wait_for('document.title')
@@ -95,7 +106,7 @@ Instead of [`CDP.connect`](https://AnswerDotAI.github.io/fastcdp/core.html#cdp.c
 
 ``` python
 page = await Page.new()
-await page.goto('https://httpbin.org/forms/post')
+await page.goto('https://httpbingo.org/forms/post')
 ```
 
 For finding elements to interact with, use `ax_tree`:
@@ -130,7 +141,7 @@ await page.js_node_run('this.value = "18:30"', root.find_id('InputTime', 'delive
 
     {'type': 'undefined'}
 
-You can use `click` to click a button, or `click_and_wait` to wait for the next page to load:
+`click` sends real pointer events. `click_and_wait` does the same and requires the click to navigate the top frame, waiting for `load` by default. For a custom action, wrap it in `async with page.expect_navigation():`; for in-place UI updates, click normally and wait for the resulting content instead.
 
 ``` python
 await page.click_and_wait(root.find_id('button', 'Submit order'))
