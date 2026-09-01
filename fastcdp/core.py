@@ -13,6 +13,7 @@ __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'chrome_bin', 'Targets', 'CDPMet
 from fastcore.utils import *
 from fastcore.meta import delegates
 from fastcore.net import is_port_free, wait_port_free_async
+from fastcore.aio import wait_until
 import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
@@ -252,6 +253,7 @@ def _cmd_doc(domain, method, cmd):
 
 # %% ../nbs/00_core.ipynb #1c2d0198
 class CDPMethod:
+    "A protocol command as a callable with a generated signature and docs"
     def __init__(self, cdp, domain, method):
         store_attr()
         if (cmd := _find_cmd(domain, method)):
@@ -261,6 +263,7 @@ class CDPMethod:
     async def __call__(self, sid=None, **kw): return await self.cdp(f'{self.domain}.{self.method}', sid=sid, **kw)
 
 class CDPDomain:
+    "A protocol domain as an attribute namespace of its commands"
     def __init__(self, cdp, domain): store_attr()
 
     def __getattr__(self, method):
@@ -279,6 +282,7 @@ async def attach(self:CDP,
     "Attach to target `tid`"
     return await self.target.attachToTarget(targetId=tid, flatten=True)
 
+# %% ../nbs/00_core.ipynb #f69c22d6
 @patch
 async def eval(self:CDP,
     expr:str, # JS expression; a promise result is awaited
@@ -293,6 +297,7 @@ async def eval(self:CDP,
 @patch
 @asynccontextmanager
 async def on(self:CDP, *events:str):
+    "Subscribe to `events` for the scope of the block, yielding the queue their frames arrive on"
     q = asyncio.Queue()
     for e in events: self._events.setdefault(e, []).append(q)
     try: yield q
@@ -301,18 +306,14 @@ async def on(self:CDP, *events:str):
 
 @patch
 async def wait_event(self:CDP, event:str, timeout:int=10):
+    "The next `event` frame, within `timeout` seconds"
     async with self.on(event) as q: return await asyncio.wait_for(q.get(), timeout)
 
 # %% ../nbs/00_core.ipynb #1d2f0ec0
 @patch
 async def wait_for(self:CDP, expr:str, sid:str=None, timeout:int=10):
     "Wait for JS expression to be truthy, return its value"
-    deadline = asyncio.get_event_loop().time() + timeout
-    while asyncio.get_event_loop().time() < deadline:
-        r = await self.eval(expr, sid)
-        if r: return r
-        await asyncio.sleep(0.05)
-    raise TimeoutError(f'Timed out waiting for: {expr}')
+    return await wait_until(lambda: self.eval(expr, sid), expr, timeout, sleep=0.05)
 
 @patch
 async def wait_for_selector(self:CDP,
@@ -339,6 +340,7 @@ def _copy_meta(src, dest):
 
 # %% ../nbs/00_core.ipynb #1d63dba1
 class PageDomain:
+    "A CDP domain bound to one session"
     def __init__(self, sid, domain): store_attr()
     def __dir__(self): return self.domain.__dir__()
 
@@ -350,6 +352,7 @@ class PageDomain:
 
 # %% ../nbs/00_core.ipynb #8fb12710
 class Page:
+    "A tab and its session: every `CDP` helper and domain, with `sid` filled in"
     def __init__(self, cdp:CDP, t:str, sid:str, owned:bool=False): store_attr()
 
     @classmethod
@@ -366,6 +369,7 @@ class Page:
         sid = await cdp.attach(t)
         self = cls(cdp, t, sid, owned=owned)
         await cdp.page.enable(sid=sid)
+        await cdp.emulation.setFocusEmulationEnabled(enabled=True, sid=sid)  # every driven page renders and takes input as if focused, however its tab or window is hidden
         return self
 
     def __getattr__(self, name):
@@ -391,11 +395,11 @@ class Page:
 # %% ../nbs/00_core.ipynb #bf90b19e
 @patch
 async def active_page(self:CDP):
-    "A `Page` driving the focused attachable tab, or `None` when none has focus"
+    "A `Page` driving the focused attachable tab, or `None` when none has focus; a hidden tab never qualifies, since focus emulation makes `hasFocus()` lie"
     for t in (await self('Target.getTargets')):
         if t['type'] != 'page' or t['url'].startswith(('chrome://', 'devtools://')): continue
         sid = await self.attach(t['targetId'])
-        if await self.eval('document.hasFocus()', sid): return Page(self, t['targetId'], sid)
+        if await self.eval('document.hasFocus() && document.visibilityState === "visible"', sid): return Page(self, t['targetId'], sid)
         await self.target.detachFromTarget(sessionId=sid)
 
 @patch(cls_method=True)
@@ -419,9 +423,7 @@ async def new_page(self:CDP,
     "Create a new tab, return Page"
     t = await self.target.createTarget(url='about:blank', background=background)
     await asyncio.sleep(0.1)
-    p = await Page.new(t, self)
-    if background: await p.emulation.setFocusEmulationEnabled(enabled=True)  # unthrottle rendering in the unfocused tab
-    return p
+    return await Page.new(t, self)
 
 # %% ../nbs/00_core.ipynb #8930594b
 @patch
@@ -430,6 +432,18 @@ async def attach_page(self:CDP,
 )->Page: # Proxy driving that tab
     "Attach to the existing tab `tid`"
     return await Page.new(tid, self)
+
+# %% ../nbs/00_core.ipynb #37e1324c
+@patch
+async def wait_for_new_page(self:CDP,
+    existing, # Page target rows or target IDs captured before the opening action
+    timeout:float=10, # Seconds to wait before raising
+):
+    "Wait for a page absent from `existing`, attach it, and return its `Page`"
+    known = {getattr(p, 'targetId', p) for p in existing}
+    async def _found(): return first(p for p in await self.pages if p.targetId not in known)
+    t = await wait_until(_found, 'a new page', timeout)
+    return await self.attach_page(t.targetId)
 
 # %% ../nbs/00_core.ipynb #0bf3d185
 _ready_evs = ('Network.requestWillBeSent','Network.loadingFinished','Network.loadingFailed',
@@ -594,10 +608,33 @@ def build_ax_tree(nodes:list):
 
 # %% ../nbs/00_core.ipynb #2a418b3b
 @patch
-async def ax_tree(self:CDP, sid:str=None):
-    "Get accessibility tree for session"
+async def ax_tree(self:CDP,
+    sid:str=None, # Session to read
+    frame_id:str=None, # Frame to read; the session's main frame if None
+):
+    "Get the accessibility tree for a session or one of its frames"
     await self.accessibility.enable(sid=sid)
-    return build_ax_tree(await self.accessibility.getFullAXTree(sid=sid))
+    kwargs = dict(frameId=frame_id) if frame_id else {}
+    return build_ax_tree(await self.accessibility.getFullAXTree(sid=sid, **kwargs))
+
+# %% ../nbs/00_core.ipynb #1c1f51e9
+def _frame_rows(tree):
+    return [tree['frame']] + [f for child in tree.get('childFrames', []) for f in _frame_rows(child)]
+
+@patch
+async def frames(self:CDP, sid:str=None):
+    "Return the page's current frames in tree order"
+    return L(AttrDict(f) for f in _frame_rows(await self.page.getFrameTree(sid=sid)))
+
+@patch
+async def wait_for_child_frame(self:CDP,
+    url:str, # Text contained in the frame URL
+    sid:str=None, # Session to wait in
+    timeout:float=10, # Seconds to wait before raising
+):
+    "Wait for a frame whose URL contains `url` and return its metadata"
+    async def _found(): return first(f for f in await self.frames(sid) if url in f.url)
+    return await wait_until(_found, f'frame URL containing {url!r}', timeout)
 
 # %% ../nbs/00_core.ipynb #92b49b0c
 @patch
@@ -689,6 +726,12 @@ async def sel_node(self:CDP, sel:str, sid:str=None)->int:
     if not nid: raise ValueError(f'no element matches {sel!r}')
     return nid
 
+@patch
+async def sel_backend_id(self:CDP, sel:str, sid:str=None)->int:
+    "Backend node id of the first element matching CSS selector `sel`, for `click` and friends"
+    node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
+    return node['backendNodeId']
+
 class MatchedStyles(list):
     "Matched rules in cascade order (winners last), one line per rule"
     def __repr__(self): return '\n'.join(f"[{r.origin}] {truncstr(r.selector, 40)} {r.css}" for r in self)
@@ -730,6 +773,39 @@ async def js_node_run(self:CDP,
     "Run `code` with a DOM node as `this`"
     return await self.js_node(f'function() {{ {code} }}', backendNodeId, sid=sid)
 
+# %% ../nbs/00_core.ipynb #2f5c4582
+@patch
+async def _node_center(self:CDP, backendNodeId:int, sid:str=None):
+    q = (await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId))['content']
+    return (q[0]+q[4])/2, (q[1]+q[5])/2
+
+@patch
+async def scroll_to(self:CDP,
+    backendNodeId:int, # Node, e.g. from `AXNode.find_id`
+    sid:str=None, # Session the node lives in
+):
+    "Scroll a node to the center of the viewport"
+    await self.js_node_run('this.scrollIntoView({block: "center", behavior: "instant"})', backendNodeId, sid=sid)
+
+@patch
+async def _scroll_center(self:CDP, backendNodeId:int, sid:str=None):
+    await self.scroll_to(backendNodeId, sid=sid)
+    return await self._node_center(backendNodeId, sid)
+
+# %% ../nbs/00_core.ipynb #d3219598
+async def _bounded(action, name, timeout):
+    try: return await asyncio.wait_for(action, timeout)
+    except TimeoutError as e: raise TimeoutError(f'{name} timed out after {timeout:g}s') from e
+
+@patch
+async def hover(self:CDP,
+    backendNodeId:int, # Node to hover, e.g. from `AXNode.find_id`
+    sid:str=None, # Session the node lives in
+):
+    "Scroll a node into view and move the mouse to its center, firing its hover events and CSS `:hover`"
+    x,y = await self._scroll_center(backendNodeId, sid)
+    await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
+
 @patch
 async def click(self:CDP,
     backendNodeId:int, # Node, e.g. from `AXNode.find_id`
@@ -738,17 +814,23 @@ async def click(self:CDP,
 ):
     "Click a node with real pointer events, bounded by `timeout`"
     async def _click():
-        await self.js_node_run('this.scrollIntoView({block: "center", behavior: "instant"})', backendNodeId, sid=sid)
-        async def _center():
-            q = (await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId))['content']
-            return (q[0]+q[4])/2, (q[1]+q[5])/2
-        x,y = await _center()
-        await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
-        x,y = await _center()  # hover-gated UI renders on the move, which can change the box
+        await self.hover(backendNodeId, sid=sid)
+        x,y = await self._node_center(backendNodeId, sid) # hover-gated UI can change the box
         for t in ('mousePressed', 'mouseReleased'):
             await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
-    try: await asyncio.wait_for(_click(), timeout)
-    except TimeoutError as e: raise TimeoutError(f'click timed out after {timeout:g}s') from e
+    await _bounded(_click(), 'click', timeout)
+
+@patch
+async def tap(self:CDP,
+    backendNodeId:int, # Node, e.g. from `AXNode.find_id`
+    sid:str=None, # Session the node lives in
+    timeout:float=5, # Maximum seconds for the whole tap
+):
+    "Activate a node with a trusted tap gesture, without mouse hover"
+    async def _tap():
+        x,y = await self._scroll_center(backendNodeId, sid)
+        await self.input.synthesizeTapGesture(sid=sid, x=x, y=y)
+    await _bounded(_tap(), 'tap', timeout)
 
 @patch
 async def dom_click(self:CDP,
@@ -757,8 +839,7 @@ async def dom_click(self:CDP,
     timeout:float=5, # Maximum seconds to wait
 ):
     "Activate a node with its DOM `click`, bounded by `timeout`"
-    try: await asyncio.wait_for(self.js_node_run('this.click()', backendNodeId, sid=sid), timeout)
-    except TimeoutError as e: raise TimeoutError(f'dom_click timed out after {timeout:g}s') from e
+    await _bounded(self.js_node_run('this.click()', backendNodeId, sid=sid), 'dom_click', timeout)
 
 # %% ../nbs/00_core.ipynb #f512a6f2
 @patch
@@ -830,15 +911,14 @@ async def wait_for_ax(self:CDP,
     role:str=None, # Accessibility role to match exactly, as in `find`
     name:str=None, # Substring of the accessible name to match, as in `find`
     sid:str=None, # Session to wait in
+    frame_id:str=None, # Frame to read; the session's main frame if None
     timeout:int=10, # Seconds to wait before raising
 ):
     "Poll `ax_tree` until a node matches `role`/`name` (as in `find`); returns the fresh tree"
-    deadline = asyncio.get_event_loop().time() + timeout
-    while asyncio.get_event_loop().time() < deadline:
-        t = await self.ax_tree(sid=sid)
+    async def _found():
+        t = await self.ax_tree(sid=sid, frame_id=frame_id)
         if t is not None and t.find(role, name): return t
-        await asyncio.sleep(0.2)
-    raise TimeoutError(f'Timed out waiting for ax node role={role!r} name={name!r}')
+    return await wait_until(_found, f'ax node role={role!r} name={name!r}', timeout)
 
 # %% ../nbs/00_core.ipynb #90320ba6
 class _EvtBuf:
@@ -846,9 +926,9 @@ class _EvtBuf:
     def __init__(self, cdp, *events):
         self.q,self.items = asyncio.Queue(),[]
         for e in events: cdp._events.setdefault(e, []).append(self.q)
-    def drain(self):
+    def drain(self, sid=None):
         while not self.q.empty(): self.items.append(self.q.get_nowait())
-        return self.items
+        return [m for m in self.items if m.get('sessionId') == sid] if sid else self.items
 
 def _fmt_console(m):
     p = m['params']
@@ -864,9 +944,7 @@ async def start_console(self:CDP, sid:str=None):
 @patch
 async def console(self:CDP, pattern:str=None, sid:str=None):
     "Console/exception messages buffered since `start_console`, filtered by regex `pattern`"
-    msgs = self._console.drain()
-    if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
-    res = [_fmt_console(m) for m in msgs]
+    res = [_fmt_console(m) for m in self._console.drain(sid)]
     return [s for s in res if re.search(pattern, s)] if pattern else res
 
 # %% ../nbs/00_core.ipynb #d096afc1
@@ -879,9 +957,7 @@ async def start_network(self:CDP, sid:str=None):
 @patch
 async def requests(self:CDP, pattern:str=None, sid:str=None):
     "(status,url,requestId) of responses buffered since `start_network`, url filtered by regex `pattern`"
-    msgs = self._network.drain()
-    if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
-    res = [(p['response']['status'], p['response']['url'], p['requestId']) for m in msgs for p in [m['params']]]
+    res = [(p['response']['status'], p['response']['url'], p['requestId']) for m in self._network.drain(sid) for p in [m['params']]]
     return [r for r in res if re.search(pattern, r[1])] if pattern else res
 
 @patch
@@ -948,11 +1024,10 @@ async def ws_frames(self:CDP,
     sid:str=None, # Session whose frames to read
 )->WSFrames:
     "Frames buffered since `start_ws`; a snapshot, so to read a frame that may still be in flight use `wait_for_frame`"
-    msgs = self._ws.drain()
-    if sid: msgs = [m for m in msgs if m.get('sessionId') == sid]
-    res = WSFrames(WSFrame(m['method'].endswith('Sent'), m['params']['timestamp'], m['params']['response']['payloadData']) for m in msgs)
+    res = WSFrames(WSFrame(m['method'].endswith('Sent'), m['params']['timestamp'], m['params']['response']['payloadData']) for m in self._ws.drain(sid))
     if sent is not None: res = WSFrames(f for f in res if f.sent == sent)
     return WSFrames(f for f in res if re.search(pattern, f.payload)) if pattern else res
+
 @patch
 async def wait_for_frame(self:CDP,
     pattern:str, # Regex the payload must match
@@ -961,11 +1036,7 @@ async def wait_for_frame(self:CDP,
     timeout:int=10, # Seconds to wait before raising
 )->WSFrames:
     "Poll `ws_frames` until a frame matches; returns the matching frames"
-    deadline = asyncio.get_event_loop().time() + timeout
-    while asyncio.get_event_loop().time() < deadline:
-        if (res := await self.ws_frames(pattern, sent, sid)): return res
-        await asyncio.sleep(0.05)
-    raise TimeoutError(f'Timed out waiting for a websocket frame matching: {pattern}')
+    return await wait_until(lambda: self.ws_frames(pattern, sent, sid), f'a websocket frame matching: {pattern}', timeout, sleep=0.05)
 
 # %% ../nbs/00_core.ipynb #3a8381b9
 @patch
@@ -1064,25 +1135,13 @@ async def sel_exists(self:CDP, sel:str, sid:str=None)->bool:
 @patch
 async def sel_click(self:CDP, sel:str, sid:str=None):
     "`click` the first element matching CSS selector `sel`"
-    node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
-    await self.click(node['backendNodeId'], sid=sid)
+    await self.click(await self.sel_backend_id(sel, sid=sid), sid=sid)
 
 # %% ../nbs/00_core.ipynb #e8dd8522
 @patch
-async def hover(self:CDP,
-    backendNodeId:int, # Node to hover, e.g. from `AXNode.find_id`
-    sid:str=None, # Session the node lives in
-):
-    "Move the mouse to a node's center, firing its hover events and CSS `:hover`"
-    box = await self.DOM.getBoxModel(sid=sid, backendNodeId=backendNodeId)
-    q = box['content']
-    await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=(q[0]+q[4])/2, y=(q[1]+q[5])/2)
-
-@patch
 async def sel_hover(self:CDP, sel:str, sid:str=None):
     "`hover` the first element matching CSS selector `sel`"
-    node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
-    await self.hover(node['backendNodeId'], sid=sid)
+    await self.hover(await self.sel_backend_id(sel, sid=sid), sid=sid)
 
 @patch
 async def sel_attr(self:CDP, sel:str, name:str, sid:str=None):

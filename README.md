@@ -109,7 +109,7 @@ page = await Page.new()
 await page.goto('https://httpbingo.org/forms/post')
 ```
 
-For finding elements to interact with, use `ax_tree`:
+For finding elements to interact with, use `ax_tree`. Pass `frame_id=` to read a child frame directly:
 
 ``` python
 root = await page.ax_tree()
@@ -141,7 +141,9 @@ await page.js_node_run('this.value = "18:30"', root.find_id('InputTime', 'delive
 
     {'type': 'undefined'}
 
-`click` sends real pointer events. `click_and_wait` does the same and requires the click to navigate the top frame, waiting for `load` by default. For a custom action, wrap it in `async with page.expect_navigation():`; for in-place UI updates, click normally and wait for the resulting content instead.
+`click` moves the real mouse before pressing and releasing. `tap` sends a trusted Chrome tap gesture without moving the mouse. `dom_click` calls the element’s JavaScript activation and does not produce trusted input. Use `tap` when mouse movement is unreliable or hover is undesirable.
+
+`click_and_wait` uses `click` and requires a top-frame navigation. For another activation path, compose it with `expect_navigation`. For in-place UI updates, activate normally and wait for the resulting content.
 
 ``` python
 await page.click_and_wait(root.find_id('button', 'Submit order'))

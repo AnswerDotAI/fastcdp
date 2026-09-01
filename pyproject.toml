@@ -18,7 +18,7 @@ classifiers = [
 dependencies = [
   "websockets",
   "httpx",
-  "fastcore>=2.1.2"
+  "fastcore>=2.2.18"
 ]
 
 [project.urls]
