@@ -2,6 +2,14 @@
 
 <!-- do not remove -->
 
+## 0.0.11
+
+### New Features
+
+- Drive child frames wherever Chrome renders them, and wait for the composited scroll before pointer events ([#19](https://github.com/AnswerDotAI/fastcdp/pull/19)), thanks to [@jph00](https://github.com/jph00)
+- Add tap gesture, hover/frame helpers, wait_for_new_page, focus emulation for all pages, and per-frame ax_tree support ([#18](https://github.com/AnswerDotAI/fastcdp/issues/18))
+
+
 ## 0.0.10
 
 ### New Features
