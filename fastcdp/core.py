@@ -353,20 +353,21 @@ class PageDomain:
 # %% ../nbs/00_core.ipynb #8fb12710
 class Page:
     "A tab and its session: every `CDP` helper and domain, with `sid` filled in"
-    def __init__(self, cdp:CDP, t:str, sid:str, owned:bool=False): store_attr()
+    def __init__(self, cdp:CDP, t:str, sid:str, owned:bool=False, frame_id:str=None): store_attr()
 
     @classmethod
     @delegates(CDP.connect)
     async def new(cls,
         t:str=None, # Target id of an existing tab; a new blank tab if None
         cdp:CDP=None, # Connection to use; a new one from `CDP.connect(**kwargs)` if None, closed with the page
+        sid:str=None, # Session already attached to `t`; attached here if None
         **kwargs
     ):
         "A `Page` for tab `t`, on connection `cdp`"
         if not cdp: cdp,owned = await CDP.connect(**kwargs),True
         else: owned = False
         if not t: t = await cdp.target.createTarget(url='about:blank')
-        sid = await cdp.attach(t)
+        if not sid: sid = await cdp.attach(t)
         self = cls(cdp, t, sid, owned=owned)
         await cdp.page.enable(sid=sid)
         await cdp.emulation.setFocusEmulationEnabled(enabled=True, sid=sid)  # every driven page renders and takes input as if focused, however its tab or window is hidden
@@ -377,8 +378,10 @@ class Page:
         o = getattr(self.cdp, name)
         if isinstance(o, CDPDomain): return PageDomain(self.sid, o)
         if not callable(o): return o
-        if not inspect.iscoroutinefunction(o): return _copy_meta(o, lambda *a, **kw: o(*a, sid=self.sid, **kw))
-        async def _f(*a, **kw): return await o(*a, sid=self.sid, **kw)
+        kw0 = dict(sid=self.sid)
+        if self.frame_id and 'frame_id' in inspect.signature(o).parameters: kw0['frame_id'] = self.frame_id
+        if not inspect.iscoroutinefunction(o): return _copy_meta(o, lambda *a, **kw: o(*a, **{**kw0, **kw}))
+        async def _f(*a, **kw): return await o(*a, **{**kw0, **kw})
         return _copy_meta(o, _f)
 
     async def close(self):
@@ -636,6 +639,56 @@ async def wait_for_child_frame(self:CDP,
     async def _found(): return first(f for f in await self.frames(sid) if url in f.url)
     return await wait_until(_found, f'frame URL containing {url!r}', timeout)
 
+# %% ../nbs/00_core.ipynb #d35eff61
+class _Kids:
+    "Child frame targets of auto-attached sessions, folded from `Target` events on each read"
+    def __init__(self, cdp):
+        self.cdp,self.kids,self.roots,self.q = cdp,{},set(),asyncio.Queue()
+        for e in ('Target.attachedToTarget', 'Target.detachedFromTarget', 'Target.targetInfoChanged'): cdp._events.setdefault(e, []).append(self.q)
+    async def watch(self, sid):
+        "Have Chrome attach `sid`'s child frames as they appear, and the existing ones now; a session gone meanwhile is dropped"
+        if sid in self.roots: return
+        self.roots.add(sid)
+        try: await self.cdp.target.setAutoAttach(sid=sid, autoAttach=True, waitForDebuggerOnStart=False, flatten=True)
+        except RuntimeError:
+            for t,k in list(self.kids.items()):
+                if k['sid'] == sid: del self.kids[t]
+    async def read(self):
+        while not self.q.empty():
+            m = self.q.get_nowait()
+            p = m['params']
+            if m['method'] == 'Target.attachedToTarget':
+                if (ti := p['targetInfo'])['type'] == 'iframe': self.kids[ti['targetId']] = dict(sid=p['sessionId'], url=ti['url'], parent=m.get('sessionId'))
+            elif m['method'] == 'Target.detachedFromTarget':
+                for t,k in list(self.kids.items()):
+                    if k['sid'] == p['sessionId']: del self.kids[t]
+            elif (k := self.kids.get(p['targetInfo']['targetId'])): k['url'] = p['targetInfo']['url']
+        for k in list(self.kids.values()): await self.watch(k['sid'])
+        return self.kids
+    def under(self, sid):
+        "Kids whose chain of parent sessions reaches `sid`, nested frames included"
+        bysid = {k['sid']: k for k in self.kids.values()}
+        def _is(k):
+            while k:
+                if k['parent'] == sid: return True
+                k = bysid.get(k['parent'])
+        return {t: k for t,k in self.kids.items() if _is(k)}
+
+@patch
+async def frame_page(self:CDP,
+    url:str, # Text contained in the frame's URL
+    sid:str=None, # Session whose frames to search
+    timeout:float=10, # Seconds to wait before raising
+)->Page: # Proxy bound to the frame: this session with the frame id filled in, or the frame's own session
+    "A `Page` for the child frame whose URL contains `url`, wherever Chrome renders it"
+    kids = self._kids = getattr(self, '_kids', None) or _Kids(self)
+    await kids.watch(sid)
+    async def _found():
+        if (f := first(f for f in await self.frames(sid) if url in f.url and f.get('parentId'))): return Page(self, None, sid, frame_id=f.id)
+        await kids.read()
+        if (t := first(t for t,k in kids.under(sid).items() if url in k['url'])): return await Page.new(t, self, sid=kids.kids[t]['sid'])
+    return await wait_until(_found, f'a frame whose URL contains {url!r}', timeout)
+
 # %% ../nbs/00_core.ipynb #92b49b0c
 @patch
 def find(self:AXNode,
@@ -784,8 +837,9 @@ async def scroll_to(self:CDP,
     backendNodeId:int, # Node, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
 ):
-    "Scroll a node to the center of the viewport"
+    "Scroll a node to the center of the viewport, and wait for the frame that composites the scroll"
     await self.js_node_run('this.scrollIntoView({block: "center", behavior: "instant"})', backendNodeId, sid=sid)
+    await self.eval('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))', sid=sid)
 
 @patch
 async def _scroll_center(self:CDP, backendNodeId:int, sid:str=None):
@@ -910,14 +964,15 @@ async def click_and_wait(self:CDP,
 async def wait_for_ax(self:CDP,
     role:str=None, # Accessibility role to match exactly, as in `find`
     name:str=None, # Substring of the accessible name to match, as in `find`
+    pred:callable=None, # Extra test a matching node must pass, e.g. `lambda n: not n.props.get('disabled')`
     sid:str=None, # Session to wait in
     frame_id:str=None, # Frame to read; the session's main frame if None
     timeout:int=10, # Seconds to wait before raising
 ):
-    "Poll `ax_tree` until a node matches `role`/`name` (as in `find`); returns the fresh tree"
+    "Poll `ax_tree` until a node matches `role`/`name` (as in `find`) and `pred`; returns the fresh tree"
     async def _found():
         t = await self.ax_tree(sid=sid, frame_id=frame_id)
-        if t is not None and t.find(role, name): return t
+        if t is not None and any(pred is None or pred(n) for n in t.find_all(role, name)): return t
     return await wait_until(_found, f'ax node role={role!r} name={name!r}', timeout)
 
 # %% ../nbs/00_core.ipynb #90320ba6
