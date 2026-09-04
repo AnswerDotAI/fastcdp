@@ -11,7 +11,7 @@ __all__ = ['cdp_search', 'cdp_conninfo', 'CDP', 'chrome_bin', 'Targets', 'CDPMet
 
 # %% ../nbs/00_core.ipynb #34dc06ce
 from fastcore.utils import *
-from fastcore.meta import delegates
+from fastcore.meta import delegates, splice_sig
 from fastcore.net import is_port_free, wait_port_free_async
 from fastcore.aio import wait_until
 import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
@@ -331,13 +331,6 @@ async def wait_defined(self:CDP, name:str, sid:str=None, timeout:int=10):
     "Wait until the global `name` exists and is truthy"
     await self.wait_for(f'!!window[{json.dumps(name)}]', sid, timeout)
 
-# %% ../nbs/00_core.ipynb #e9e3f54d
-def _copy_meta(src, dest):
-    if hasattr(src, '__doc__'): dest.__doc__ = src.__doc__
-    if hasattr(src, '__signature__'):
-        dest.__signature__ = src.__signature__.replace(parameters=[p for p in src.__signature__.parameters.values() if p.name != 'sid'])
-    return dest
-
 # %% ../nbs/00_core.ipynb #1d63dba1
 class PageDomain:
     "A CDP domain bound to one session"
@@ -380,9 +373,9 @@ class Page:
         if not callable(o): return o
         kw0 = dict(sid=self.sid)
         if self.frame_id and 'frame_id' in inspect.signature(o).parameters: kw0['frame_id'] = self.frame_id
-        if not inspect.iscoroutinefunction(o): return _copy_meta(o, lambda *a, **kw: o(*a, **{**kw0, **kw}))
+        if not inspect.iscoroutinefunction(o): return splice_sig(lambda *a, **kw: o(*a, **{**kw0, **kw}), o, 'sid')
         async def _f(*a, **kw): return await o(*a, **{**kw0, **kw})
-        return _copy_meta(o, _f)
+        return splice_sig(_f, o, 'sid')
 
     async def close(self):
         # Ignore errors if already closed
@@ -1175,6 +1168,24 @@ async def wait_for_text(self:CDP,
     src = f'(document.querySelector({json.dumps(sel)})?.textContent ?? "")' if sel else '(document.body?.innerText ?? "")'
     expr = f'{src}.includes({json.dumps(text)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
+
+# %% ../nbs/00_core.ipynb #f5a24179
+@patch
+@asynccontextmanager
+async def expect_htmx(self:CDP,
+    path:str, # Substring the htmx request's path must contain
+    event:str='htmx:afterSettle', # Completion event: `htmx:afterSettle` once swapped in, `htmx:afterRequest` once answered
+    sid:str=None, # Session of the page
+    timeout:float=10, # Maximum seconds to wait after the action
+):
+    "Arm a one-shot listener for an htmx request to `path` before the action, then wait for its `event`"
+    n = await self.eval('window.__htmx_n = (window.__htmx_n || 0) + 1', sid)
+    await self.eval(f'''window.__htmx_{n} = false;
+document.body.addEventListener({json.dumps(event)}, function h(e) {{
+  if (!e.detail.pathInfo.requestPath.includes({json.dumps(path)})) return;
+  window.__htmx_{n} = true; document.body.removeEventListener({json.dumps(event)}, h) }})''', sid)
+    yield
+    await self.wait_for(f'window.__htmx_{n}', sid, timeout)
 
 # %% ../nbs/00_core.ipynb #e4877f59
 @patch
