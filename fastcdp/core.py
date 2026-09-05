@@ -340,8 +340,8 @@ class PageDomain:
     def __getattr__(self, name):
         if name.startswith('_'): raise AttributeError(name)
         m = getattr(self.domain, name)
-        async def _f(**kw): return await m(sid=self.sid, **kw)
-        return _copy_meta(m, _f)
+        async def _f(*a, **kw): return await m(*a, sid=self.sid, **kw)
+        return splice_sig(_f, m, 'sid')
 
 # %% ../nbs/00_core.ipynb #8fb12710
 class Page:
