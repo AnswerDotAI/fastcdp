@@ -131,6 +131,8 @@ nmid
 
     4
 
+Inspect a control’s HTML attributes with `await page.attrs(nmid)` or `await page.attrs('[name=custname]')`. Both return a dictionary. To inspect several elements, use `await page.sel_attrs('input', 'name', 'type')`. This returns one dictionary per match, with `None` for missing requested attributes. Omit the names to read all attributes.
+
 You can use regular CDP methods, or one of the provided shortcuts:
 
 ``` python
