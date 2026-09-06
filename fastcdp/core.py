@@ -75,79 +75,89 @@ class CDP:
         self._id,self._pending,self._events = 0,{},{}
         store_attr()
 
-    @classmethod
-    async def connect(cls,
-        p:str=None, # Contents of a `DevToolsActivePort` file, for `cdp_conninfo`
-        wsconn:str=None, # Websocket URL or port to connect to; from `cdp_conninfo` if None
-        debug:bool=None, # Print each event as it arrives?
-        command_timeout:float=10, # Seconds to wait for each protocol command
-        timeout:int=60, # Seconds to wait for Chrome's connection approval
-    ):
-        "Connect to a running Chrome and start the read loop"
-        if wsconn is None: wsconn = cdp_conninfo(p)
-        self = cls(wsconn, debug=debug, command_timeout=command_timeout)
-        url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
-        self.ws = await websockets.connect(url, max_size=None, open_timeout=timeout)
-        self._reader = asyncio.create_task(self._read_loop())
-        self._keep = asyncio.create_task(self._keepalive())
-        return self
-
-    async def _read_loop(self):
-        try:
-            async for raw in self.ws:
-                msg = json.loads(raw)
-                if 'id' in msg:
-                    if (fut := self._pending.pop(msg['id'], None)): fut.set_result(msg)
-                else: self._dispatch(msg)
-        except websockets.ConnectionClosed: pass
-
-    def _dispatch(self, msg):
-        "Route an event frame to every queue subscribed to its method"
-        if 'method' not in msg: return
-        if self.debug: print(f"EVT: {msg['method']} sid={msg.get('sessionId','')[:8]}")
-        for q in self._events.get(msg['method'], []): q.put_nowait(msg)
-
-    async def _keepalive(self):
-        while True:
-            try: await self('Runtime.evaluate', expression='1')
-            except: break
-            await asyncio.sleep(30)
-
-    async def _send(self, msg):
-        "Send one command frame and return its reply frame; transports override this"
-        self._id += 1
-        mid = msg['id'] = self._id
-        fut = asyncio.get_event_loop().create_future()
-        self._pending[mid] = fut
-        try:
-            await self.ws.send(json.dumps(msg))
-            return await fut
-        finally: self._pending.pop(mid, None)
-
-    async def __call__(self, method:str, sid:str=None, **params):
-        msg = dict(method=method)
-        if params: msg['params'] = params
-        if sid: msg['sessionId'] = sid
-        try: r = await asyncio.wait_for(self._send(msg), self.command_timeout)
-        except TimeoutError as e: raise TimeoutError(f'{method} timed out after {self.command_timeout:g}s') from e
-        if 'error' in r: raise RuntimeError(f"{method}: {r['error']}")
-        res = r.get('result', {})
-        return first(res.values()) if len(res) == 1 else res
-
-    async def close(self):
-        self._keep.cancel()
-        self._reader.cancel()
-        if (t := getattr(self, '_dialog_task', None)): t.cancel()
-        await self.ws.close()
-
-    @property
-    def is_open(self): return self.ws.state.name == 'OPEN'
-
     def __dir__(self): return super().__dir__() + [_lower1(o) for o in _domains.keys()]
 
     def __getattr__(self, domain):
         if domain.startswith('_'): raise AttributeError()
         return CDPDomain(self, _upper1(domain))
+
+# %% ../nbs/00_core.ipynb #e71d0fdb
+@patch
+def _dispatch(self:CDP, msg):
+    "Route an event frame to every queue subscribed to its method"
+    if 'method' not in msg: return
+    if self.debug: print(f"EVT: {msg['method']} sid={msg.get('sessionId','')[:8]}")
+    for q in self._events.get(msg['method'], []): q.put_nowait(msg)
+
+@patch
+async def _read_loop(self:CDP):
+    try:
+        async for raw in self.ws:
+            msg = json.loads(raw)
+            if 'id' in msg:
+                if (fut := self._pending.pop(msg['id'], None)): fut.set_result(msg)
+            else: self._dispatch(msg)
+    except websockets.ConnectionClosed: pass
+
+@patch
+async def _keepalive(self:CDP):
+    while True:
+        try: await self('Runtime.evaluate', expression='1')
+        except: break
+        await asyncio.sleep(30)
+
+@patch(cls_method=True)
+async def connect(cls:CDP,
+    p:str=None, # Contents of a `DevToolsActivePort` file, for `cdp_conninfo`
+    wsconn:str=None, # Websocket URL or port to connect to; from `cdp_conninfo` if None
+    debug:bool=None, # Print each event as it arrives?
+    command_timeout:float=10, # Seconds to wait for each protocol command
+    timeout:int=60, # Seconds to wait for Chrome's connection approval
+):
+    "Connect to a running Chrome and start the read loop"
+    if wsconn is None: wsconn = cdp_conninfo(p)
+    self = cls(wsconn, debug=debug, command_timeout=command_timeout)
+    url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
+    self.ws = await websockets.connect(url, max_size=None, open_timeout=timeout)
+    self._reader = asyncio.create_task(self._read_loop())
+    self._keep = asyncio.create_task(self._keepalive())
+    return self
+
+
+# %% ../nbs/00_core.ipynb #05ee1f38
+@patch
+async def _send(self:CDP, msg):
+    "Send one command frame and return its reply frame; transports override this"
+    self._id += 1
+    mid = msg['id'] = self._id
+    fut = asyncio.get_event_loop().create_future()
+    self._pending[mid] = fut
+    try:
+        await self.ws.send(json.dumps(msg))
+        return await fut
+    finally: self._pending.pop(mid, None)
+
+@patch
+async def __call__(self:CDP, method:str, sid:str=None, **params):
+    msg = dict(method=method)
+    if params: msg['params'] = params
+    if sid: msg['sessionId'] = sid
+    try: r = await asyncio.wait_for(self._send(msg), self.command_timeout)
+    except TimeoutError as e: raise TimeoutError(f'{method} timed out after {self.command_timeout:g}s') from e
+    if 'error' in r: raise RuntimeError(f"{method}: {r['error']}")
+    res = r.get('result', {})
+    return first(res.values()) if len(res) == 1 else res
+
+# %% ../nbs/00_core.ipynb #ab9955a7
+@patch
+async def close(self:CDP):
+    self._keep.cancel()
+    self._reader.cancel()
+    if (t := getattr(self, '_dialog_task', None)): t.cancel()
+    await self.ws.close()
+
+@patch(as_prop=True)
+def is_open(self:CDP): return self.ws.state.name == 'OPEN'
 
 # %% ../nbs/00_core.ipynb #1e09344e
 @patch(cls_method=True)
@@ -614,8 +624,7 @@ async def ax_tree(self:CDP,
     return build_ax_tree(await self.accessibility.getFullAXTree(sid=sid, **kwargs))
 
 # %% ../nbs/00_core.ipynb #1c1f51e9
-def _frame_rows(tree):
-    return [tree['frame']] + [f for child in tree.get('childFrames', []) for f in _frame_rows(child)]
+def _frame_rows(tree): return [tree['frame']] + [f for child in tree.get('childFrames', []) for f in _frame_rows(child)]
 
 @patch
 async def frames(self:CDP, sid:str=None):
@@ -731,6 +740,7 @@ def path(self:AXNode):
         p = p.up()
     return ' > '.join(reversed(ps))
 
+# %% ../nbs/00_core.ipynb #ef13a350
 class AXView(str):
     "A rendered subtree, displayed as markdown"
     def _repr_markdown_(self): return str(self)
@@ -741,6 +751,7 @@ def view(self:AXNode, depth:int=None)->AXView:
     "Markdown subtree rooted here, to `depth` levels (`None` = unbounded)"
     return AXView('\n'.join(_render(self, 0, depth)))
 
+# %% ../nbs/00_core.ipynb #07d9e3d3
 class AXMatches(list):
     "`grep` hits, one line per node: id, role, name, ancestor path"
     def __repr__(self):
@@ -778,6 +789,7 @@ async def sel_backend_id(self:CDP, sel:str, sid:str=None)->int:
     node = await self.DOM.describeNode(sid=sid, nodeId=await self.sel_node(sel, sid=sid))
     return node['backendNodeId']
 
+# %% ../nbs/00_core.ipynb #ae51154b
 class MatchedStyles(list):
     "Matched rules in cascade order (winners last), one line per rule"
     def __repr__(self): return '\n'.join(f"[{r.origin}] {truncstr(r.selector, 40)} {r.css}" for r in self)
@@ -798,6 +810,16 @@ async def matched_styles(self:CDP, target:str|int, sid:str=None)->MatchedStyles:
         res.append(AttrDict(origin=r['origin'], selector=r['selectorList']['text'],
             css=' '.join((r['style'].get('cssText') or '').split()), raw=m))
     return res
+
+# %% ../nbs/00_core.ipynb #370c6035
+@patch
+async def attrs(self:CDP, target:str|int, sid:str=None)->dict:
+    "All HTML attributes as a dict, from a CSS selector's first match or an ax backend node id"
+    kw = dict(nodeId=await self.sel_node(target, sid=sid)) if isinstance(target, str) else dict(backendNodeId=target)
+    node = await self.DOM.describeNode(sid=sid, **kw)
+    vals = node.get('attributes', [])
+    return dict(zip(vals[::2], vals[1::2]))
+
 
 # %% ../nbs/00_core.ipynb #6639fea3
 @patch
@@ -867,6 +889,7 @@ async def click(self:CDP,
             await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
     await _bounded(_click(), 'click', timeout)
 
+# %% ../nbs/00_core.ipynb #67fddc8c
 @patch
 async def tap(self:CDP,
     backendNodeId:int, # Node, e.g. from `AXNode.find_id`
@@ -978,6 +1001,7 @@ class _EvtBuf:
         while not self.q.empty(): self.items.append(self.q.get_nowait())
         return [m for m in self.items if m.get('sessionId') == sid] if sid else self.items
 
+# %% ../nbs/00_core.ipynb #de5cc516
 def _fmt_console(m):
     p = m['params']
     if (d := p.get('exceptionDetails')): return f"error: {nested_idx(d, 'exception', 'description') or d['text']}"
@@ -1076,6 +1100,7 @@ async def ws_frames(self:CDP,
     if sent is not None: res = WSFrames(f for f in res if f.sent == sent)
     return WSFrames(f for f in res if re.search(pattern, f.payload)) if pattern else res
 
+# %% ../nbs/00_core.ipynb #3674a511
 @patch
 async def wait_for_frame(self:CDP,
     pattern:str, # Regex the payload must match
@@ -1209,6 +1234,7 @@ async def sel_hover(self:CDP, sel:str, sid:str=None):
     "`hover` the first element matching CSS selector `sel`"
     await self.hover(await self.sel_backend_id(sel, sid=sid), sid=sid)
 
+# %% ../nbs/00_core.ipynb #cfa599f3
 @patch
 async def sel_attr(self:CDP, sel:str, name:str, sid:str=None):
     "Attribute `name` of the first element matching CSS selector `sel`, or None"
@@ -1224,10 +1250,12 @@ async def sel_map(self:CDP, sel:str, fn:str, sid:str=None)->list:
     "JS function `fn` applied to every element matching CSS selector `sel`, in document order"
     return await self.eval(f'[...document.querySelectorAll({json.dumps(sel)})].map({fn})', sid)
 
+# %% ../nbs/00_core.ipynb #9b976ce3
 @patch
-async def sel_attrs(self:CDP, sel:str, name:str, sid:str=None)->list:
-    "Attribute `name` of every element matching CSS selector `sel`, in document order"
-    return await self.sel_map(sel, f'e => e.getAttribute({json.dumps(name)})', sid=sid)
+async def sel_attrs(self:CDP, sel:str, *names:str, sid:str=None)->list[dict]:
+    "One attribute dict per match, in document order; all attributes if no names, missing requested values are None"
+    keys = json.dumps(names) if names else 'e.getAttributeNames()'
+    return await self.sel_map(sel, f'e => Object.fromEntries({keys}.map(n => [n, e.getAttribute(n)]))', sid=sid)
 
 # %% ../nbs/00_core.ipynb #904883ee
 def cdp_yolo():

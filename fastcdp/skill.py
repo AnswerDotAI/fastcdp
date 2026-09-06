@@ -68,8 +68,13 @@ Call the `start_*` helpers right after creating the page -- CDP only delivers ev
 
 Without `handle_dialogs`, a JS `alert`/`confirm` blocks its page (and whatever `eval` triggered it) indefinitely.
 
-For tests against a live app, `Rung` names each step: a failure inside the context re-raises with the rung's name and `page.evidence()`, a report from whichever debugging buffers were started. `hover`/`sel_hover` engage CSS `:hover` and mouse events, and `sel_attr`/`sel_count` read an attribute or count matches by selector, and `sel_map`/`sel_attrs` map a JS function or attribute over every match.
+For tests against a live app, `Rung` names each step: a failure inside the context re-raises with the rung's name and `page.evidence()`, a report from whichever debugging buffers were started. `hover`/`sel_hover` engage CSS `:hover` and mouse events. `sel_attr`/`sel_count` read an attribute or count matches by selector. `sel_map` applies a JS function to every match.
 `Rungs(page)` is the factory form: it binds the page once and logs each rung's duration, and its display is the timing profile.
+
+`attrs(target)` returns all HTML attributes as a dictionary for a CSS selector's first match or an ax backend node id. `sel_attrs(sel, *names)` returns a list of dictionaries in document order, even for one requested name. Missing requested attributes are `None`. Omit the names to read all attributes:
+
+    await page.attrs(root.find_id('button', 'Submit order'))
+    await page.sel_attrs('button', 'aria-label', 'hx-get', 'hx-post')
 
 # Live CSS and design iteration
 
