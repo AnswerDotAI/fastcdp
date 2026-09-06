@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.13
+
+### New Features
+
+- Read HTML attributes as dictionaries ([#21](https://github.com/AnswerDotAI/fastcdp/pull/21)), thanks to [@jph00](https://github.com/jph00)
+
+
 ## 0.0.12
 
 ### New Features
