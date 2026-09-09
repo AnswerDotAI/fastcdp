@@ -188,7 +188,7 @@ def main(
     if install:
         res = install_chrome(install, with_deps=with_deps)
         print(res)
-        return res
+        return
     if with_deps: raise ValueError('--with-deps requires --install')
     profile = Path(profile) if profile else Path.home()/'.cache/fastcdp/cdp-chrome'
     chrome, sys = chrome_path(), platform.system()
@@ -197,4 +197,3 @@ def main(
     elif sys == 'Windows': res = _win_app(chrome, name, port, profile, Path(os.environ['APPDATA'])/'Microsoft/Windows/Start Menu/Programs')
     else: raise RuntimeError(f'Unsupported OS: {sys}')
     print(f'Created {res}\nConnect with: cdp = await CDP.remote({port})')
-    return res
