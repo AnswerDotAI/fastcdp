@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.15
+
+### New Features
+
+- Add CDP.testing disposable browser sessions with Chrome for Testing install via fastcdp-setup --install ([#23](https://github.com/AnswerDotAI/fastcdp/issues/23))
+
+
 ## 0.0.14
 
 ### New Features
