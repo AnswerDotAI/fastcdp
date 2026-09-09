@@ -6,6 +6,8 @@ Choose the browser before connecting. Acting in an everyday browser uses the use
 
 Use the companion extension (`ExtCDP`) for an explicitly requested everyday browser when available. Direct everyday-browser access (`CDP.connect`) requires the user to enable remote debugging and approve the connection popup. A dedicated debug browser uses `CDP.remote`; `fastcdp-setup` creates a launcher for it. For a separate automation profile, inspect `CDP.launch`.
 
+For isolated tests without existing cookies or logins, use `async with CDP.testing(headless=True) as cdp:`. It owns a separate Chrome for Testing process and temporary profile, and cleans up both on exit. Install that browser explicitly with `fastcdp-setup --install stable` (`--with-deps` on Debian/Ubuntu). This does not change the real-Chrome launchers, profiles, or connection modes.
+
 Read the chosen connection method's docs before calling it. Once connected, inspect the connection to discover tab creation, attachment, and cleanup. Keep work in background tabs unless bringing a tab forward is part of the request. Do not close the user's tabs or quit their browser as routine cleanup. Read the relevant `close` or `quit` docs: tab ownership and connection ownership are different.
 
 # Discover the actual object

@@ -17,6 +17,8 @@ from fastcore.aio import wait_until
 import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
+from tempfile import TemporaryDirectory
+from .setup import testing_chrome
 
 # %% ../nbs/00_core.ipynb #930c2391
 if '__file__' not in globals():
@@ -179,6 +181,17 @@ def chrome_bin():
     if not b: raise FileNotFoundError('No Chrome or Chromium found; set FASTCDP_CHROME')
     return b
 
+# %% ../nbs/00_core.ipynb #a4a89507
+async def _stop_chrome(proc):
+    if proc.returncode is not None: return
+    try: proc.terminate()
+    except ProcessLookupError: pass
+    try: await asyncio.wait_for(proc.wait(), 5)
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+
+
 # %% ../nbs/00_core.ipynb #e2ed788d
 @patch(cls_method=True)
 async def launch(cls:CDP,
@@ -187,6 +200,7 @@ async def launch(cls:CDP,
     debug:bool=None, # Print protocol events?
     timeout:int=10, # Seconds to wait for the debug endpoint
     reuse:bool=True, # Connect to an instance already running on this profile? (Else raise)
+    chrome:str|Path=None, # Explicit executable; otherwise use installed Chrome (`FASTCDP_CHROME` overrides)
 ):
     """Start or reuse Chrome on a separate profile and connect to it.
 
@@ -207,17 +221,21 @@ async def launch(cls:CDP,
             return self
     args = [f'--user-data-dir={d}', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check']
     if headless: args.append('--headless=new')
-    proc = await asyncio.create_subprocess_exec(chrome_bin(), *args,
+    proc = await asyncio.create_subprocess_exec(chrome or chrome_bin(), *args,
         stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-    deadline = asyncio.get_event_loop().time() + timeout
-    while not f.exists():
-        if proc.returncode is not None: raise RuntimeError('Chrome exited at launch (already running on this profile dir?)')
-        if asyncio.get_event_loop().time() > deadline: raise TimeoutError('Timed out waiting for Chrome debug endpoint')
-        await asyncio.sleep(0.05)
-    ci = cdp_conninfo(d=d)
-    self = await cls.connect(wsconn=ci, debug=debug)
-    self.proc,self.port = proc, int(ci.split('/', 1)[0])
-    return self
+    try:
+        deadline = asyncio.get_event_loop().time() + timeout
+        while not f.exists():
+            if proc.returncode is not None: raise RuntimeError('Chrome exited at launch; check its system dependencies and profile directory')
+            if asyncio.get_event_loop().time() > deadline: raise TimeoutError('Timed out waiting for Chrome debug endpoint')
+            await asyncio.sleep(0.05)
+        ci = cdp_conninfo(d=d)
+        self = await cls.connect(wsconn=ci, debug=debug)
+        self.proc,self.port = proc, int(ci.split('/', 1)[0])
+        return self
+    except BaseException:
+        await _stop_chrome(proc)
+        raise
 
 # %% ../nbs/00_core.ipynb #7055c385
 @patch
@@ -228,6 +246,29 @@ async def quit(self:CDP):
     await self.close()
     if (proc := getattr(self, 'proc', None)) is not None: await proc.wait()
     elif (port := getattr(self, 'port', None)): await wait_port_free_async(port, max_wait=5)
+
+# %% ../nbs/00_core.ipynb #7e118367
+@patch(cls_method=True)
+@asynccontextmanager
+async def testing(cls:CDP,
+    headless:bool=False, # Run without a visible window?
+    version:str=None, # Exact installed Chrome for Testing version; latest installation if None
+    debug:bool=None, # Print protocol events?
+    timeout:int=10, # Seconds to wait for the debug endpoint
+):
+    "Own a fresh Chrome for Testing and temporary profile for the duration of an `async with` block"
+    chrome = testing_chrome(version)
+    with TemporaryDirectory(prefix='fastcdp-testing-') as profile:
+        cdp = await cls.launch(user_data_dir=profile, headless=headless, debug=debug, timeout=timeout, reuse=False, chrome=chrome)
+        try: yield cdp
+        finally:
+            try:
+                if cdp.is_open: await asyncio.wait_for(cdp.quit(), 5)
+            except (TimeoutError, websockets.ConnectionClosed): pass
+            finally:
+                await _stop_chrome(cdp.proc)
+                await cdp.close()
+
 
 # %% ../nbs/00_core.ipynb #1e09344e
 @patch(cls_method=True)
@@ -258,6 +299,7 @@ def _find_cmd(domain, method):
     d = _domains.get(domain, {})
     return first(c for c in d.get('commands', []) if c['name'] == method)
 
+# %% ../nbs/00_core.ipynb #fcacee26
 def _cmd_sig(cmd):
     _P = inspect.Parameter
     ps = [_P(p['name'], _P.KEYWORD_ONLY, default=None if p.get('optional') else _P.empty) for p in cmd.get('parameters', [])]
@@ -289,6 +331,7 @@ class CDPMethod:
 
     async def __call__(self, sid=None, **kw): return await self.cdp(f'{self.domain}.{self.method}', sid=sid, **kw)
 
+# %% ../nbs/00_core.ipynb #3e6cdb74
 class CDPDomain:
     "A protocol domain; inspect a command object for its signature and return fields"
     def __init__(self, cdp, domain): store_attr()
@@ -384,25 +427,24 @@ class Page:
         async def _f(*a, **kw): return await o(*a, **{**kw0, **kw})
         return splice_sig(_f, o, 'sid')
 
-    async def close(self):
-        "Close this tab, including an attached existing tab; close the connection only when owned"
-        # Ignore errors if already closed
-        try: await self.cdp.target.closeTarget(targetId=self.t)
-        except RuntimeError: pass
-        if self.owned: await self.cdp.close()
-
-    async def __aenter__(self): return self
-    async def __aexit__(self, *exc): await self.close()
-
-    @property
-    def is_open(self):
-        "Whether the shared connection is open, not whether this tab still exists"
-        return self.cdp.is_open
-
     def __dir__(self):
         helpers = {n for n in dir(type(self.cdp))
             if inspect.isfunction(o := inspect.getattr_static(type(self.cdp), n)) and 'sid' in inspect.signature(o).parameters}
         return sorted(set(super().__dir__()) | helpers | _domains.keys())
+
+# %% ../nbs/00_core.ipynb #19ec70ce
+@patch
+async def close(self:Page):
+    "Close this tab, including an attached existing tab; close the connection only when owned"
+    # Ignore errors if already closed
+    try: await self.cdp.target.closeTarget(targetId=self.t)
+    except RuntimeError: pass
+    if self.owned: await self.cdp.close()
+
+@patch(as_prop=True)
+def is_open(self:Page):
+    "Whether the shared connection is open, not whether this tab still exists"
+    return self.cdp.is_open
 
 # %% ../nbs/00_core.ipynb #91c7b64a
 @patch(cls_method=True)
@@ -423,6 +465,7 @@ async def new(cls:Page,
     await cdp.emulation.setFocusEmulationEnabled(enabled=True, sid=sid)  # every driven page renders and takes input as if focused, however its tab or window is hidden
     return self
 
+# %% ../nbs/00_core.ipynb #cb45a004
 @patch
 async def active_page(self:CDP):
     "A `Page` driving the focused attachable tab, or `None` when none has focus; a hidden tab never qualifies, since focus emulation makes `hasFocus()` lie"
@@ -444,7 +487,6 @@ async def remote_page(cls:CDP,
     page.owned = True
     return page
 
-
 # %% ../nbs/00_core.ipynb #3d0570b5
 @patch
 async def new_page(self:CDP,
@@ -454,6 +496,12 @@ async def new_page(self:CDP,
     t = await self.target.createTarget(url='about:blank', background=background)
     await asyncio.sleep(0.1)
     return await Page.new(t, self)
+
+# %% ../nbs/00_core.ipynb #5953f55c
+@patch
+async def __aenter__(self:Page): return self
+@patch
+async def __aexit__(self:Page, *exc): await self.close()
 
 # %% ../nbs/00_core.ipynb #8930594b
 @patch
@@ -481,6 +529,7 @@ async def _event_wait(q, sid, deadline, pred, what):
         except asyncio.TimeoutError as e: raise TimeoutError(f'Timed out waiting for {what}') from e
         if (sid is None or m.get('sessionId') == sid) and pred(m): return m
 
+# %% ../nbs/00_core.ipynb #c27452f4
 @patch
 async def _idle_wait(self:CDP, q, sid, deadline, idle_ms):
     live,clock = set(),asyncio.get_event_loop().time
@@ -499,7 +548,6 @@ async def _idle_wait(self:CDP, q, sid, deadline, idle_ms):
             if p['request']['url'].startswith(('http://','https://')) and p.get('type') not in ('WebSocket','EventSource'): live.add(p['requestId'])
         else: live.discard(p['requestId'])
         quiet_at = clock() + idle_ms/1000
-
 
 # %% ../nbs/00_core.ipynb #f345a618
 @patch
@@ -583,6 +631,7 @@ def _set_parents(node):
         c.parent = node
         _set_parents(c)
 
+# %% ../nbs/00_core.ipynb #e4a0a6f4
 def build_ax_tree(nodes:list):
     "Build AXNode tree from flat CDP accessibility node list"
     by_id = {}
@@ -1038,6 +1087,7 @@ class _TopEls(HTMLParser):
     def handle_endtag(self, tag):
         if tag not in _void_els: self._depth = max(0, self._depth-1)
 
+# %% ../nbs/00_core.ipynb #e1355de7
 class WSFrame:
     "One captured websocket frame"
     def __init__(self,
@@ -1107,6 +1157,7 @@ async def evidence(self:CDP, pattern:str=None, sid:str=None):
     if hasattr(self, '_ws'): res.append(f'frames:\n{await self.ws_frames(sid=sid)!r}')
     return '\n'.join(res)
 
+# %% ../nbs/00_core.ipynb #8a1f967e
 class Rung:
     "Async context: a failure inside re-raises named after the rung, with the page's `evidence` attached"
     def __init__(self,
@@ -1135,30 +1186,30 @@ class Rungs:
 
 # %% ../nbs/00_core.ipynb #ba9aa533
 @patch
+async def _dialog_pump(self:CDP, q):
+    "Answer each opening dialog from `_dialog_answers`: the dialog session's entry, else the connection default (`None`), else leave it unanswered"
+    while True:
+        m = await q.get()
+        msid,p = m.get('sessionId'),m['params']
+        kw = self._dialog_answers.get(msid, self._dialog_answers.get(None))
+        if kw is None: continue
+        self._dialog_history.append((msid, p['type'], p['message']))
+        try: await self.page.handleJavaScriptDialog(sid=msid, **kw)
+        except RuntimeError as e:
+            if 'No dialog is showing' not in str(e): raise
+
+@patch
 async def handle_dialogs(self:CDP,
     accept:bool=True, # Answer each dialog with OK (True) or Cancel (False)
     text:str=None, # Text to enter into a `prompt` dialog
     sid:str=None, # Session whose dialogs to answer; None supplies the connection default
 ):
-    """Set this session's JS dialog answer, preserving its recorded `dialogs`.
-
-    Configure before triggering a dialog. Without an answer, an `alert`, `confirm`, or `prompt` blocks the page and its triggering evaluation. Starting console or network capture does not answer dialogs.
-    """
+    "Set this session's JS dialog answer, preserving its recorded `dialogs`; configure before triggering a dialog"
     if not hasattr(self, '_dialog_answers'):
         self._dialog_answers,self._dialog_history = {},[]
         q = asyncio.Queue()
         self._events.setdefault('Page.javascriptDialogOpening', []).append(q)
-        async def _h():
-            while True:
-                m = await q.get()
-                msid,p = m.get('sessionId'),m['params']
-                kw = self._dialog_answers.get(msid, self._dialog_answers.get(None))
-                if kw is None: continue
-                self._dialog_history.append((msid, p['type'], p['message']))
-                try: await self.page.handleJavaScriptDialog(sid=msid, **kw)
-                except RuntimeError as e:
-                    if 'No dialog is showing' not in str(e): raise
-        self._dialog_task = asyncio.create_task(_h())
+        self._dialog_task = asyncio.create_task(self._dialog_pump(q))
     kw = dict(accept=accept)
     if text is not None: kw['promptText'] = text
     self._dialog_answers[sid] = kw
@@ -1169,6 +1220,7 @@ def dialogs(self:CDP):
     "Recorded (type, message) pairs from every handled session"
     return [(typ,msg) for sid,typ,msg in getattr(self, '_dialog_history', [])]
 
+# %% ../nbs/00_core.ipynb #d1d913af
 @patch(as_prop=True)
 def dialogs(self:Page):
     "Recorded (type, message) pairs from this page"
@@ -1329,6 +1381,7 @@ class _Kids:
                 k = bysid.get(k['parent'])
         return {t: k for t,k in self.kids.items() if _is(k)}
 
+# %% ../nbs/00_core.ipynb #79ab7a4f
 @patch
 async def frame_page(self:CDP,
     url:str, # Text contained in the frame's URL

@@ -23,12 +23,13 @@ $ pip install fastcdp
 from fastcdp import *
 ```
 
-Choose one of four connection methods. Read `doc(fastcdp.skill)` for browser-selection and ownership guidance, then the chosen method’s full docs:
+Choose one of five connection methods. Read `doc(fastcdp.skill)` for browser-selection and ownership guidance, then the chosen method’s full docs:
 
 - `cdp = await CDP.launch()` starts or reuses Chrome with a separate automation profile. The default profile persists between runs.
 - `cdp = await CDP.connect()` attaches to an everyday Chrome with remote debugging enabled and the user’s approval.
 - `cdp = await CDP.remote()` attaches to a dedicated debug browser. `fastcdp-setup` creates a launcher for this configuration.
 - `cdp = await ExtCDP.listen()` waits for the [fastcdp-chrome](https://github.com/AnswerDotAI/fastcdp-chrome) extension in the requested browser.
+- `async with CDP.testing(headless=True) as cdp:` owns a disposable Chrome for Testing and temporary profile. Install it once with `fastcdp-setup --install stable`; the context closes the browser and removes the profile when finished. It leaves your installed Chrome and CDP Chrome setup untouched.
 
 This walkthrough uses `connect`:
 
