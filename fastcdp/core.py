@@ -47,7 +47,6 @@ def cdp_search(q:str):
 def _lower1(s): return s[0].lower() + s[1:]
 def _upper1(s): return s[0].upper() + s[1:]
 
-# chkstyle: ignore-node
 _chrome_paths = dict(
     Darwin=['Library/Application Support/Google/Chrome/DevToolsActivePort',
         'Library/Application Support/Chromium/DevToolsActivePort'],
@@ -71,22 +70,26 @@ def cdp_conninfo(
 # %% ../nbs/00_core.ipynb #48f443ee
 class CDP:
     "Chrome DevTools Protocol connection with event support"
-    def __init__(self, wsconn:str=None, debug:bool=False, command_timeout:float=10):
+    def __init__(
+        self, wsconn:str=None, # WebSocket URL, populated by connection helpers
+        debug:bool=False, # Log protocol events
+        command_timeout:float=10, # Seconds before an unanswered command raises TimeoutError
+    ):
         self._id,self._pending,self._events = 0,{},{}
         store_attr()
 
-    def __dir__(self): return super().__dir__() + [_lower1(o) for o in _domains.keys()]
+    def __dir__(self): return sorted(set(super().__dir__()) | _domains.keys())
 
     def __getattr__(self, domain):
-        if domain.startswith('_'): raise AttributeError()
-        return CDPDomain(self, _upper1(domain))
+        if domain.startswith('_') or domain.lower() not in _domain_names: raise AttributeError(domain)
+        return CDPDomain(self, _domain_names[domain.lower()])
 
 # %% ../nbs/00_core.ipynb #e71d0fdb
 @patch
 def _dispatch(self:CDP, msg):
     "Route an event frame to every queue subscribed to its method"
     if 'method' not in msg: return
-    if self.debug: print(f"EVT: {msg['method']} sid={msg.get('sessionId','')[:8]}")
+    if self.debug: print(f"EVT: {msg['method']} sid={str(msg.get('sessionId',''))[:8]}")
     for q in self._events.get(msg['method'], []): q.put_nowait(msg)
 
 @patch
@@ -106,6 +109,7 @@ async def _keepalive(self:CDP):
         except: break
         await asyncio.sleep(30)
 
+# %% ../nbs/00_core.ipynb #51c155af
 @patch(cls_method=True)
 async def connect(cls:CDP,
     p:str=None, # Contents of a `DevToolsActivePort` file, for `cdp_conninfo`
@@ -114,7 +118,10 @@ async def connect(cls:CDP,
     command_timeout:float=10, # Seconds to wait for each protocol command
     timeout:int=60, # Seconds to wait for Chrome's connection approval
 ):
-    "Connect to a running Chrome and start the read loop"
+    """Connect to a running Chrome and start the read loop.
+
+    Everyday Chrome requires remote debugging enabled at `chrome://inspect/#remote-debugging` and approval of each new client. Warn the user before connecting. A handshake timeout can mean the approval popup was not answered; ask them to watch for it before retrying. Dedicated debug browsers do not show this popup.
+    """
     if wsconn is None: wsconn = cdp_conninfo(p)
     self = cls(wsconn, debug=debug, command_timeout=command_timeout)
     url = self.wsconn if self.wsconn.startswith('ws') else f'ws://127.0.0.1:{self.wsconn}'
@@ -122,7 +129,6 @@ async def connect(cls:CDP,
     self._reader = asyncio.create_task(self._read_loop())
     self._keep = asyncio.create_task(self._keepalive())
     return self
-
 
 # %% ../nbs/00_core.ipynb #05ee1f38
 @patch
@@ -151,6 +157,7 @@ async def __call__(self:CDP, method:str, sid:str=None, **params):
 # %% ../nbs/00_core.ipynb #ab9955a7
 @patch
 async def close(self:CDP):
+    "Disconnect and cancel event tasks; leave the browser and its tabs open"
     self._keep.cancel()
     self._reader.cancel()
     if (t := getattr(self, '_dialog_task', None)): t.cancel()
@@ -159,19 +166,7 @@ async def close(self:CDP):
 @patch(as_prop=True)
 def is_open(self:CDP): return self.ws.state.name == 'OPEN'
 
-# %% ../nbs/00_core.ipynb #1e09344e
-@patch(cls_method=True)
-async def remote(cls:CDP,
-    port:int=9223, # Remote debugging port of the running Chrome
-    debug:bool=None, # Print each event as it arrives?
-):
-    "Connect via Chrome remote debugging HTTP endpoint"
-    async with httpx.AsyncClient() as client:
-        url = (await client.get(f'http://localhost:{port}/json/version')).json()['webSocketDebuggerUrl']
-    return await cls.connect(wsconn=url, debug=debug)
-
 # %% ../nbs/00_core.ipynb #65405bf6
-# chkstyle: ignore-node
 _chrome_bins = dict(Darwin=['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium'],
     Linux=['google-chrome', 'chromium', 'chromium-browser'])
@@ -193,7 +188,10 @@ async def launch(cls:CDP,
     timeout:int=10, # Seconds to wait for the debug endpoint
     reuse:bool=True, # Connect to an instance already running on this profile? (Else raise)
 ):
-    "Launch the installed Chrome CDP-ready on its own profile dir, and connect to it"
+    """Start or reuse Chrome on a separate profile and connect to it.
+
+    The default profile persists across runs. Supply a temporary directory for isolated work. `headless` applies when starting a browser, not when reusing one. `quit` stops the browser; `close` only disconnects.
+    """
     d = Path(user_data_dir) if user_data_dir else Path.home()/'.cache'/'fastcdp'/'profile'
     d.mkdir(parents=True, exist_ok=True)
     f = d/'DevToolsActivePort'
@@ -231,6 +229,17 @@ async def quit(self:CDP):
     if (proc := getattr(self, 'proc', None)) is not None: await proc.wait()
     elif (port := getattr(self, 'port', None)): await wait_port_free_async(port, max_wait=5)
 
+# %% ../nbs/00_core.ipynb #1e09344e
+@patch(cls_method=True)
+async def remote(cls:CDP,
+    port:int=9223, # Remote debugging port of the running Chrome
+    debug:bool=None, # Print each event as it arrives?
+):
+    "Connect via Chrome remote debugging HTTP endpoint"
+    async with httpx.AsyncClient() as client:
+        url = (await client.get(f'http://localhost:{port}/json/version')).json()['webSocketDebuggerUrl']
+    return await cls.connect(wsconn=url, debug=debug)
+
 # %% ../nbs/00_core.ipynb #e7db5a91
 class Targets(list):
     "Page targets as attribute-access rows, one line per target"
@@ -243,6 +252,7 @@ async def pages(self:CDP)->Targets: # Rows with `targetId`, `url`, `title`, `att
 
 # %% ../nbs/00_core.ipynb #7b94f2b8
 _domains = {d['domain']: d for d in _cdp_domains}
+_domain_names = {n.lower():n for n in _domains}
 
 def _find_cmd(domain, method):
     d = _domains.get(domain, {})
@@ -259,6 +269,11 @@ def _cmd_doc(domain, method, cmd):
     for p in cmd.get('parameters', []):
         opt = ' (optional)' if p.get('optional') else ''
         doc += f"\n  {p['name']}{opt}: {p.get('description', '')}"
+    returns = cmd.get('returns', [])
+    doc += '\n\nReturns the field value for a single-field result, otherwise the result dict.'
+    for p in returns:
+        typ = p.get('$ref', p.get('type', ''))
+        doc += f"\n  {p['name']} ({typ}): {p.get('description', '')}"
     return doc
 
 # %% ../nbs/00_core.ipynb #1c2d0198
@@ -266,23 +281,23 @@ class CDPMethod:
     "A protocol command as a callable with a generated signature and docs"
     def __init__(self, cdp, domain, method):
         store_attr()
-        if (cmd := _find_cmd(domain, method)):
-            self.__doc__ = _cmd_doc(domain, method, cmd)
-            self.__signature__ = _cmd_sig(cmd)
+        self.__name__ = f'{domain}.{method}'
+        cmd = _find_cmd(domain, method)
+        if cmd is None: raise AttributeError(self.__name__)
+        self.__doc__ = _cmd_doc(domain, method, cmd)
+        self.__signature__ = _cmd_sig(cmd)
 
     async def __call__(self, sid=None, **kw): return await self.cdp(f'{self.domain}.{self.method}', sid=sid, **kw)
 
 class CDPDomain:
-    "A protocol domain as an attribute namespace of its commands"
+    "A protocol domain; inspect a command object for its signature and return fields"
     def __init__(self, cdp, domain): store_attr()
 
     def __getattr__(self, method):
-        if method.startswith('_'): raise AttributeError()
+        if method.startswith('_'): raise AttributeError(method)
         return CDPMethod(self.cdp, self.domain, method)
 
-    def __dir__(self):
-        d = _domains.get(self.domain, {})
-        return [c['name'] for c in d.get('commands', [])] + [e['name'] for e in d.get('events', [])]
+    def __dir__(self): return [c['name'] for c in _domains[self.domain].get('commands', [])]
 
 # %% ../nbs/00_core.ipynb #3c348501
 @patch
@@ -355,32 +370,14 @@ class PageDomain:
 
 # %% ../nbs/00_core.ipynb #8fb12710
 class Page:
-    "A tab and its session: every `CDP` helper and domain, with `sid` filled in"
+    "A tab and its session; session helpers bind `sid`, and connection operations live on `page.cdp`"
     def __init__(self, cdp:CDP, t:str, sid:str, owned:bool=False, frame_id:str=None): store_attr()
 
-    @classmethod
-    @delegates(CDP.connect)
-    async def new(cls,
-        t:str=None, # Target id of an existing tab; a new blank tab if None
-        cdp:CDP=None, # Connection to use; a new one from `CDP.connect(**kwargs)` if None, closed with the page
-        sid:str=None, # Session already attached to `t`; attached here if None
-        **kwargs
-    ):
-        "A `Page` for tab `t`, on connection `cdp`"
-        if not cdp: cdp,owned = await CDP.connect(**kwargs),True
-        else: owned = False
-        if not t: t = await cdp.target.createTarget(url='about:blank')
-        if not sid: sid = await cdp.attach(t)
-        self = cls(cdp, t, sid, owned=owned)
-        await cdp.page.enable(sid=sid)
-        await cdp.emulation.setFocusEmulationEnabled(enabled=True, sid=sid)  # every driven page renders and takes input as if focused, however its tab or window is hidden
-        return self
-
     def __getattr__(self, name):
-        if name.startswith('_'): raise AttributeError(name)
+        if name.startswith('_') or inspect.isdatadescriptor(inspect.getattr_static(self.cdp, name, None)): raise AttributeError(name)
         o = getattr(self.cdp, name)
         if isinstance(o, CDPDomain): return PageDomain(self.sid, o)
-        if not callable(o): return o
+        if not callable(o) or 'sid' not in inspect.signature(o).parameters: raise AttributeError(name)
         kw0 = dict(sid=self.sid)
         if self.frame_id and 'frame_id' in inspect.signature(o).parameters: kw0['frame_id'] = self.frame_id
         if not inspect.iscoroutinefunction(o): return splice_sig(lambda *a, **kw: o(*a, **{**kw0, **kw}), o, 'sid')
@@ -388,17 +385,44 @@ class Page:
         return splice_sig(_f, o, 'sid')
 
     async def close(self):
+        "Close this tab, including an attached existing tab; close the connection only when owned"
         # Ignore errors if already closed
         try: await self.cdp.target.closeTarget(targetId=self.t)
         except RuntimeError: pass
         if self.owned: await self.cdp.close()
 
+    async def __aenter__(self): return self
+    async def __aexit__(self, *exc): await self.close()
+
     @property
-    def is_open(self): return self.cdp.is_open
+    def is_open(self):
+        "Whether the shared connection is open, not whether this tab still exists"
+        return self.cdp.is_open
 
-    def __dir__(self): return self.cdp.__dir__()
+    def __dir__(self):
+        helpers = {n for n in dir(type(self.cdp))
+            if inspect.isfunction(o := inspect.getattr_static(type(self.cdp), n)) and 'sid' in inspect.signature(o).parameters}
+        return sorted(set(super().__dir__()) | helpers | _domains.keys())
 
-# %% ../nbs/00_core.ipynb #bf90b19e
+# %% ../nbs/00_core.ipynb #91c7b64a
+@patch(cls_method=True)
+@delegates(CDP.connect)
+async def new(cls:Page,
+    t:str=None, # Target id of an existing tab; a new blank tab if None
+    cdp:CDP=None, # Connection to use; a new one from `CDP.connect(**kwargs)` if None, closed with the page
+    sid:str=None, # Session already attached to `t`; attached here if None
+    **kwargs
+):
+    "A `Page` for tab `t`, on connection `cdp`"
+    if not cdp: cdp,owned = await CDP.connect(**kwargs),True
+    else: owned = False
+    if not t: t = await cdp.target.createTarget(url='about:blank')
+    if not sid: sid = await cdp.attach(t)
+    self = cls(cdp, t, sid, owned=owned)
+    await cdp.page.enable(sid=sid)
+    await cdp.emulation.setFocusEmulationEnabled(enabled=True, sid=sid)  # every driven page renders and takes input as if focused, however its tab or window is hidden
+    return self
+
 @patch
 async def active_page(self:CDP):
     "A `Page` driving the focused attachable tab, or `None` when none has focus; a hidden tab never qualifies, since focus emulation makes `hasFocus()` lie"
@@ -439,18 +463,6 @@ async def attach_page(self:CDP,
     "Attach to the existing tab `tid`"
     return await Page.new(tid, self)
 
-# %% ../nbs/00_core.ipynb #37e1324c
-@patch
-async def wait_for_new_page(self:CDP,
-    existing, # Page target rows or target IDs captured before the opening action
-    timeout:float=10, # Seconds to wait before raising
-):
-    "Wait for a page absent from `existing`, attach it, and return its `Page`"
-    known = {getattr(p, 'targetId', p) for p in existing}
-    async def _found(): return first(p for p in await self.pages if p.targetId not in known)
-    t = await wait_until(_found, 'a new page', timeout)
-    return await self.attach_page(t.targetId)
-
 # %% ../nbs/00_core.ipynb #0bf3d185
 _ready_evs = ('Network.requestWillBeSent','Network.loadingFinished','Network.loadingFailed',
     'Network.webSocketFrameSent','Network.webSocketFrameReceived')
@@ -469,7 +481,6 @@ async def _event_wait(q, sid, deadline, pred, what):
         except asyncio.TimeoutError as e: raise TimeoutError(f'Timed out waiting for {what}') from e
         if (sid is None or m.get('sessionId') == sid) and pred(m): return m
 
-# %% ../nbs/00_core.ipynb #853cc171
 @patch
 async def _idle_wait(self:CDP, q, sid, deadline, idle_ms):
     live,clock = set(),asyncio.get_event_loop().time
@@ -490,33 +501,6 @@ async def _idle_wait(self:CDP, q, sid, deadline, idle_ms):
         quiet_at = clock() + idle_ms/1000
 
 
-# %% ../nbs/00_core.ipynb #c126d3d4
-@patch
-@asynccontextmanager
-async def expect_navigation(self:CDP,
-    sid:str=None, # Session whose top frame must navigate
-    wait:str|None='load', # 'load', 'idle', or None to stop after navigation begins
-    timeout:float=10, # Maximum seconds for the action and requested wait
-    idle_ms:int=100, # Quiet time after load when `wait='idle'`
-):
-    "Subscribe before an action, require a top-frame navigation, then perform the requested wait"
-    _check_wait(wait)
-    await self.page.enable(sid=sid)
-    if wait == 'idle': await self.network.enable(sid=sid)
-    ft = await self.page.getFrameTree(sid=sid)
-    fid = ft['frame']['id']
-    deadline = asyncio.get_event_loop().time() + timeout
-    async with self.on(*_nav_evs) as nq, self.on('Page.loadEventFired') as lq, self.on(*_ready_evs) as iq:
-        yield
-        def _ours(m):
-            p = m['params']
-            nid = p['frame']['id'] if m['method'] == 'Page.frameNavigated' else p['frameId']
-            return nid == fid
-        nav = await _event_wait(nq, sid, deadline, _ours, 'navigation')
-        if wait is not None and nav['method'] == 'Page.frameNavigated': await _event_wait(lq, sid, deadline, noop, 'page load')
-        if wait == 'idle': await self._idle_wait(iq, sid, deadline, idle_ms)
-
-
 # %% ../nbs/00_core.ipynb #f345a618
 @patch
 async def goto(self:CDP,
@@ -526,7 +510,10 @@ async def goto(self:CDP,
     timeout:float=10, # Maximum seconds for navigation and the requested wait
     idle_ms:int=100, # Quiet time after load when `wait='idle'`
 ):
-    "Navigate to `url`, perform the requested wait, and raise on a navigation error"
+    """Navigate to `url`, perform the requested wait, and raise on a navigation error.
+
+    `load` waits for document load; `idle` also waits for initial network activity to settle. Neither guarantees application-specific readiness. Use a content wait for in-place UI updates. `wait=None` skips navigation waiting.
+    """
     _check_wait(wait)
     await self.page.enable(sid=sid)
     if wait == 'idle': await self.network.enable(sid=sid)
@@ -537,11 +524,13 @@ async def goto(self:CDP,
         if wait is not None and isinstance(r, dict) and r.get('loaderId'): await _event_wait(lq, sid, deadline, noop, 'page load')
         if wait == 'idle': await self._idle_wait(iq, sid, deadline, idle_ms)
 
-
 # %% ../nbs/00_core.ipynb #dbca1de3
 @patch
 async def set_content(self:CDP, html:str, sid:str=None):
-    "Replace the page's document with `html` (via `Page.setDocumentContent`); no navigation happens"
+    """Replace the document with `html` through `Page.setDocumentContent`, without navigation.
+
+    Use this for fixture HTML on extension connections. Navigating to a `data:` URL through the extension fails with `net::ERR_ABORTED`.
+    """
     fid = (await self.page.getFrameTree(sid=sid))['frame']['id']
     await self.page.setDocumentContent(sid=sid, frameId=fid, html=html)
 
@@ -618,78 +607,13 @@ async def ax_tree(self:CDP,
     sid:str=None, # Session to read
     frame_id:str=None, # Frame to read; the session's main frame if None
 ):
-    "Get the accessibility tree for a session or one of its frames"
+    """Get an `AXTree` for a session or one of its frames.
+
+    Display the tree or use `grep` to locate content, `up` and `view` to read its surroundings, and `find_id` to address a control. These tree operations are synchronous. Node ids are DOM backend ids, not front-end `nodeId`s.
+    """
     await self.accessibility.enable(sid=sid)
     kwargs = dict(frameId=frame_id) if frame_id else {}
     return build_ax_tree(await self.accessibility.getFullAXTree(sid=sid, **kwargs))
-
-# %% ../nbs/00_core.ipynb #1c1f51e9
-def _frame_rows(tree): return [tree['frame']] + [f for child in tree.get('childFrames', []) for f in _frame_rows(child)]
-
-@patch
-async def frames(self:CDP, sid:str=None):
-    "Return the page's current frames in tree order"
-    return L(AttrDict(f) for f in _frame_rows(await self.page.getFrameTree(sid=sid)))
-
-@patch
-async def wait_for_child_frame(self:CDP,
-    url:str, # Text contained in the frame URL
-    sid:str=None, # Session to wait in
-    timeout:float=10, # Seconds to wait before raising
-):
-    "Wait for a frame whose URL contains `url` and return its metadata"
-    async def _found(): return first(f for f in await self.frames(sid) if url in f.url)
-    return await wait_until(_found, f'frame URL containing {url!r}', timeout)
-
-# %% ../nbs/00_core.ipynb #d35eff61
-class _Kids:
-    "Child frame targets of auto-attached sessions, folded from `Target` events on each read"
-    def __init__(self, cdp):
-        self.cdp,self.kids,self.roots,self.q = cdp,{},set(),asyncio.Queue()
-        for e in ('Target.attachedToTarget', 'Target.detachedFromTarget', 'Target.targetInfoChanged'): cdp._events.setdefault(e, []).append(self.q)
-    async def watch(self, sid):
-        "Have Chrome attach `sid`'s child frames as they appear, and the existing ones now; a session gone meanwhile is dropped"
-        if sid in self.roots: return
-        self.roots.add(sid)
-        try: await self.cdp.target.setAutoAttach(sid=sid, autoAttach=True, waitForDebuggerOnStart=False, flatten=True)
-        except RuntimeError:
-            for t,k in list(self.kids.items()):
-                if k['sid'] == sid: del self.kids[t]
-    async def read(self):
-        while not self.q.empty():
-            m = self.q.get_nowait()
-            p = m['params']
-            if m['method'] == 'Target.attachedToTarget':
-                if (ti := p['targetInfo'])['type'] == 'iframe': self.kids[ti['targetId']] = dict(sid=p['sessionId'], url=ti['url'], parent=m.get('sessionId'))
-            elif m['method'] == 'Target.detachedFromTarget':
-                for t,k in list(self.kids.items()):
-                    if k['sid'] == p['sessionId']: del self.kids[t]
-            elif (k := self.kids.get(p['targetInfo']['targetId'])): k['url'] = p['targetInfo']['url']
-        for k in list(self.kids.values()): await self.watch(k['sid'])
-        return self.kids
-    def under(self, sid):
-        "Kids whose chain of parent sessions reaches `sid`, nested frames included"
-        bysid = {k['sid']: k for k in self.kids.values()}
-        def _is(k):
-            while k:
-                if k['parent'] == sid: return True
-                k = bysid.get(k['parent'])
-        return {t: k for t,k in self.kids.items() if _is(k)}
-
-@patch
-async def frame_page(self:CDP,
-    url:str, # Text contained in the frame's URL
-    sid:str=None, # Session whose frames to search
-    timeout:float=10, # Seconds to wait before raising
-)->Page: # Proxy bound to the frame: this session with the frame id filled in, or the frame's own session
-    "A `Page` for the child frame whose URL contains `url`, wherever Chrome renders it"
-    kids = self._kids = getattr(self, '_kids', None) or _Kids(self)
-    await kids.watch(sid)
-    async def _found():
-        if (f := first(f for f in await self.frames(sid) if url in f.url and f.get('parentId'))): return Page(self, None, sid, frame_id=f.id)
-        await kids.read()
-        if (t := first(t for t,k in kids.under(sid).items() if url in k['url'])): return await Page.new(t, self, sid=kids.kids[t]['sid'])
-    return await wait_until(_found, f'a frame whose URL contains {url!r}', timeout)
 
 # %% ../nbs/00_core.ipynb #92b49b0c
 @patch
@@ -791,7 +715,7 @@ async def sel_backend_id(self:CDP, sel:str, sid:str=None)->int:
 
 # %% ../nbs/00_core.ipynb #ae51154b
 class MatchedStyles(list):
-    "Matched rules in cascade order (winners last), one line per rule"
+    "Matched rules in cascade order (winners last); each row has `origin`, `selector`, `css`, and the protocol record in `raw`"
     def __repr__(self): return '\n'.join(f"[{r.origin}] {truncstr(r.selector, 40)} {r.css}" for r in self)
 
 @patch
@@ -881,13 +805,28 @@ async def click(self:CDP,
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds for the whole click
 ):
-    "Click a node with real pointer events, bounded by `timeout`"
+    "Click with real mouse movement, hover, press and release; inspect the page before retrying a timeout"
     async def _click():
         await self.hover(backendNodeId, sid=sid)
         x,y = await self._node_center(backendNodeId, sid) # hover-gated UI can change the box
         for t in ('mousePressed', 'mouseReleased'):
             await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
     await _bounded(_click(), 'click', timeout)
+
+# %% ../nbs/00_core.ipynb #bde15213
+@patch
+async def ax_click(self:CDP,
+    role:str=None, # Accessibility role to match exactly
+    name:str=None, # Case-sensitive substring of the accessible name
+    sid:str=None, # Session containing the target
+    frame_id:str=None, # Frame to read; the session's main frame if None
+    timeout:float=5, # Maximum seconds for the click
+):
+    "Find the first matching node in a fresh accessibility tree and click it"
+    root = await self.ax_tree(sid=sid, frame_id=frame_id)
+    bid = root.find_id(role, name)
+    if bid is None: raise ValueError(f'No accessibility node matching role={role!r}, name={name!r}')
+    await self.click(bid, sid=sid, timeout=timeout)
 
 # %% ../nbs/00_core.ipynb #67fddc8c
 @patch
@@ -896,7 +835,7 @@ async def tap(self:CDP,
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds for the whole tap
 ):
-    "Activate a node with a trusted tap gesture, without mouse hover"
+    "Activate with a trusted tap without mouse hover; inspect the page before retrying a timeout"
     async def _tap():
         x,y = await self._scroll_center(backendNodeId, sid)
         await self.input.synthesizeTapGesture(sid=sid, x=x, y=y)
@@ -908,7 +847,7 @@ async def dom_click(self:CDP,
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds to wait
 ):
-    "Activate a node with its DOM `click`, bounded by `timeout`"
+    "Activate with the node's JavaScript `click()` (untrusted input); inspect the page before retrying a timeout"
     await _bounded(self.js_node_run('this.click()', backendNodeId, sid=sid), 'dom_click', timeout)
 
 # %% ../nbs/00_core.ipynb #f512a6f2
@@ -918,7 +857,7 @@ async def fill_text(self:CDP,
     text:str, # Text to type into it
     sid:str=None, # Session the node lives in
 ):
-    "Replace the contents of a text control"
+    "Focus and select a text control, then replace its contents with native text insertion, without key events"
     await self.js_node_run('this.focus(); this.select()', backendNodeId, sid=sid)
     await self.input.insertText(sid=sid, text=text)
 
@@ -958,13 +897,44 @@ async def press(self:CDP,
 
 @patch
 async def type(self:CDP,
-    text:str, # Characters to press, one key event pair each
+    text:str, # Characters to press, one key event pair each. Line breaks press Enter
     sid:str=None, # Session to send to
 ):
-    "Press each character of `text` in turn; `fill_text` is faster when no per-key handling matters"
-    for ch in text: await self.press(ch, sid=sid)
+    """Press each character of `text` as key events at the current focus.
 
-# %% ../nbs/00_core.ipynb #99fda301
+    LF, CRLF, and CR line breaks press Enter, which can submit a form or trigger a shortcut. Use `fill_text` to replace a control's contents without key events.
+    """
+    for ch in text.replace('\r\n', '\n').replace('\r', '\n'): await self.press('Enter' if ch == '\n' else ch, sid=sid)
+
+# %% ../nbs/00_core.ipynb #c126d3d4
+@patch
+@asynccontextmanager
+async def expect_navigation(self:CDP,
+    sid:str=None, # Session whose top frame must navigate
+    wait:str|None='load', # 'load', 'idle', or None to stop after navigation begins
+    timeout:float=10, # Maximum seconds for the action and requested wait
+    idle_ms:int=100, # Quiet time after load when `wait='idle'`
+):
+    """An async context manager that subscribes before an action and requires a top-frame navigation.
+
+    Put the action inside `async with page.expect_navigation():`. On exit, perform the requested wait. In-place updates need content waits instead. Starting this context after the action can miss its events.
+    """
+    _check_wait(wait)
+    await self.page.enable(sid=sid)
+    if wait == 'idle': await self.network.enable(sid=sid)
+    ft = await self.page.getFrameTree(sid=sid)
+    fid = ft['frame']['id']
+    deadline = asyncio.get_event_loop().time() + timeout
+    async with self.on(*_nav_evs) as nq, self.on('Page.loadEventFired') as lq, self.on(*_ready_evs) as iq:
+        yield
+        def _ours(m):
+            p = m['params']
+            nid = p['frame']['id'] if m['method'] == 'Page.frameNavigated' else p['frameId']
+            return nid == fid
+        nav = await _event_wait(nq, sid, deadline, _ours, 'navigation')
+        if wait is not None and nav['method'] == 'Page.frameNavigated': await _event_wait(lq, sid, deadline, noop, 'page load')
+        if wait == 'idle': await self._idle_wait(iq, sid, deadline, idle_ms)
+
 @patch
 @delegates(CDP.expect_navigation)
 async def click_and_wait(self:CDP,
@@ -990,6 +960,20 @@ async def wait_for_ax(self:CDP,
         t = await self.ax_tree(sid=sid, frame_id=frame_id)
         if t is not None and any(pred is None or pred(n) for n in t.find_all(role, name)): return t
     return await wait_until(_found, f'ax node role={role!r} name={name!r}', timeout)
+
+# %% ../nbs/00_core.ipynb #37e1324c
+@patch
+async def wait_for_new_page(self:CDP,
+    existing, # Page target rows or target IDs captured before the opening action
+    timeout:float=10, # Seconds to wait before raising
+    opener:str=None, # Target ID of the page opening the new tab (page.t); None accepts any new page
+):
+    "Wait for a page absent from `existing`, attach it, and return its `Page`"
+    known = {getattr(p, 'targetId', p) for p in existing}
+    async def _found():
+        return first(p for p in await self.pages if p.targetId not in known and (opener is None or p.get('openerId') == opener))
+    t = await wait_until(_found, 'a new page', timeout)
+    return await self.attach_page(t.targetId)
 
 # %% ../nbs/00_core.ipynb #90320ba6
 class _EvtBuf:
@@ -1154,22 +1138,41 @@ class Rungs:
 async def handle_dialogs(self:CDP,
     accept:bool=True, # Answer each dialog with OK (True) or Cancel (False)
     text:str=None, # Text to enter into a `prompt` dialog
-    sid:str=None, # Session whose dialogs to answer
+    sid:str=None, # Session whose dialogs to answer; None supplies the connection default
 ):
-    "Auto-respond to JS dialogs from now on, recording (type,message) in `dialogs`"
-    await self.page.enable(sid=sid)
-    self.dialogs = []
-    q = asyncio.Queue()
-    self._events.setdefault('Page.javascriptDialogOpening', []).append(q)
-    async def _h():
-        while True:
-            m = await q.get()
-            p = m['params']
-            self.dialogs.append((p['type'], p['message']))
-            kw = dict(accept=accept)
-            if text is not None: kw['promptText'] = text
-            await self.page.handleJavaScriptDialog(sid=m.get('sessionId'), **kw)
-    self._dialog_task = asyncio.create_task(_h())
+    """Set this session's JS dialog answer, preserving its recorded `dialogs`.
+
+    Configure before triggering a dialog. Without an answer, an `alert`, `confirm`, or `prompt` blocks the page and its triggering evaluation. Starting console or network capture does not answer dialogs.
+    """
+    if not hasattr(self, '_dialog_answers'):
+        self._dialog_answers,self._dialog_history = {},[]
+        q = asyncio.Queue()
+        self._events.setdefault('Page.javascriptDialogOpening', []).append(q)
+        async def _h():
+            while True:
+                m = await q.get()
+                msid,p = m.get('sessionId'),m['params']
+                kw = self._dialog_answers.get(msid, self._dialog_answers.get(None))
+                if kw is None: continue
+                self._dialog_history.append((msid, p['type'], p['message']))
+                try: await self.page.handleJavaScriptDialog(sid=msid, **kw)
+                except RuntimeError as e:
+                    if 'No dialog is showing' not in str(e): raise
+        self._dialog_task = asyncio.create_task(_h())
+    kw = dict(accept=accept)
+    if text is not None: kw['promptText'] = text
+    self._dialog_answers[sid] = kw
+    if sid is not None: await self.page.enable(sid=sid)
+
+@patch(as_prop=True)
+def dialogs(self:CDP):
+    "Recorded (type, message) pairs from every handled session"
+    return [(typ,msg) for sid,typ,msg in getattr(self, '_dialog_history', [])]
+
+@patch(as_prop=True)
+def dialogs(self:Page):
+    "Recorded (type, message) pairs from this page"
+    return [(typ,msg) for sid,typ,msg in getattr(self.cdp, '_dialog_history', []) if sid == self.sid]
 
 # %% ../nbs/00_core.ipynb #3e7c8028
 @patch
@@ -1194,6 +1197,22 @@ async def wait_for_text(self:CDP,
     expr = f'{src}.includes({json.dumps(text)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
 
+# %% ../nbs/00_core.ipynb #c7df0d1e
+@patch
+async def drop_files(self:CDP,
+    target:str|int, # CSS selector or accessibility backend node id
+    paths:list[str|Path], # Files on the Chrome host
+    sid:str=None, # Session containing the target
+    timeout:float=5, # Maximum seconds for the drag sequence
+):
+    "Drop files onto a node with native drag events"
+    async def _drop():
+        bid = await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
+        x,y = await self._scroll_center(bid, sid)
+        data = dict(items=[], files=[str(p) for p in paths], dragOperationsMask=1)
+        for typ in ('dragEnter', 'dragOver', 'drop'): await self.input.dispatchDragEvent(sid=sid, type=typ, x=x, y=y, data=data)
+    await _bounded(_drop(), 'drop_files', timeout)
+
 # %% ../nbs/00_core.ipynb #f5a24179
 @patch
 @asynccontextmanager
@@ -1203,7 +1222,7 @@ async def expect_htmx(self:CDP,
     sid:str=None, # Session of the page
     timeout:float=10, # Maximum seconds to wait after the action
 ):
-    "Arm a one-shot listener for an htmx request to `path` before the action, then wait for its `event`"
+    "An async context manager: arm the htmx listener before the action in its block, then wait for the matching event"
     n = await self.eval('window.__htmx_n = (window.__htmx_n || 0) + 1', sid)
     await self.eval(f'''window.__htmx_{n} = false;
 document.body.addEventListener({json.dumps(event)}, function h(e) {{
@@ -1256,6 +1275,74 @@ async def sel_attrs(self:CDP, sel:str, *names:str, sid:str=None)->list[dict]:
     "One attribute dict per match, in document order; all attributes if no names, missing requested values are None"
     keys = json.dumps(names) if names else 'e.getAttributeNames()'
     return await self.sel_map(sel, f'e => Object.fromEntries({keys}.map(n => [n, e.getAttribute(n)]))', sid=sid)
+
+# %% ../nbs/00_core.ipynb #1c1f51e9
+def _frame_rows(tree): return [tree['frame']] + [f for child in tree.get('childFrames', []) for f in _frame_rows(child)]
+
+@patch
+async def frames(self:CDP, sid:str=None):
+    "Return the page's current frames in tree order"
+    return L(AttrDict(f) for f in _frame_rows(await self.page.getFrameTree(sid=sid)))
+
+@patch
+async def wait_for_child_frame(self:CDP,
+    url:str, # Text contained in the frame URL
+    sid:str=None, # Session to wait in
+    timeout:float=10, # Seconds to wait before raising
+):
+    "Wait for a frame whose URL contains `url` and return its metadata"
+    async def _found(): return first(f for f in await self.frames(sid) if url in f.url)
+    return await wait_until(_found, f'frame URL containing {url!r}', timeout)
+
+# %% ../nbs/00_core.ipynb #d35eff61
+class _Kids:
+    "Child frame targets of auto-attached sessions, folded from `Target` events on each read"
+    def __init__(self, cdp):
+        self.cdp,self.kids,self.roots,self.q = cdp,{},set(),asyncio.Queue()
+        for e in ('Target.attachedToTarget', 'Target.detachedFromTarget', 'Target.targetInfoChanged'): cdp._events.setdefault(e, []).append(self.q)
+    async def watch(self, sid):
+        "Have Chrome attach `sid`'s child frames as they appear, and the existing ones now; a session gone meanwhile is dropped"
+        if sid in self.roots: return
+        self.roots.add(sid)
+        try: await self.cdp.target.setAutoAttach(sid=sid, autoAttach=True, waitForDebuggerOnStart=False, flatten=True)
+        except RuntimeError:
+            for t,k in list(self.kids.items()):
+                if k['sid'] == sid: del self.kids[t]
+    async def read(self):
+        while not self.q.empty():
+            m = self.q.get_nowait()
+            p = m['params']
+            if m['method'] == 'Target.attachedToTarget':
+                if (ti := p['targetInfo'])['type'] == 'iframe': self.kids[ti['targetId']] = dict(sid=p['sessionId'], url=ti['url'], parent=m.get('sessionId'))
+            elif m['method'] == 'Target.detachedFromTarget':
+                for t,k in list(self.kids.items()):
+                    if k['sid'] == p['sessionId']: del self.kids[t]
+            elif (k := self.kids.get(p['targetInfo']['targetId'])): k['url'] = p['targetInfo']['url']
+        for k in list(self.kids.values()): await self.watch(k['sid'])
+        return self.kids
+    def under(self, sid):
+        "Kids whose chain of parent sessions reaches `sid`, nested frames included"
+        bysid = {k['sid']: k for k in self.kids.values()}
+        def _is(k):
+            while k:
+                if k['parent'] == sid: return True
+                k = bysid.get(k['parent'])
+        return {t: k for t,k in self.kids.items() if _is(k)}
+
+@patch
+async def frame_page(self:CDP,
+    url:str, # Text contained in the frame's URL
+    sid:str=None, # Session whose frames to search
+    timeout:float=10, # Seconds to wait before raising
+)->Page: # Proxy bound to the frame: this session with the frame id filled in, or the frame's own session
+    "A `Page` for the child frame whose URL contains `url`, wherever Chrome renders it"
+    kids = self._kids = getattr(self, '_kids', None) or _Kids(self)
+    await kids.watch(sid)
+    async def _found():
+        if (f := first(f for f in await self.frames(sid) if url in f.url and f.get('parentId'))): return Page(self, None, sid, frame_id=f.id)
+        await kids.read()
+        if (t := first(t for t,k in kids.under(sid).items() if url in k['url'])): return await Page.new(t, self, sid=kids.kids[t]['sid'])
+    return await wait_until(_found, f'a frame whose URL contains {url!r}', timeout)
 
 # %% ../nbs/00_core.ipynb #904883ee
 def cdp_yolo():

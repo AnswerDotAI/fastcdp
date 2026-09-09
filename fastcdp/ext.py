@@ -118,6 +118,7 @@ class ExtCDP(CDP):
         return obj2dict(r['result'])
 
     async def close(self):
+        "Disconnect the extension channel and stop event tasks; leave the user's tabs and browser open"
         self._pump.cancel()
         if (t := getattr(self, '_dialog_task', None)): t.cancel()
         await self.chan.close()
@@ -129,6 +130,7 @@ class ExtCDP(CDP):
 class ExtPage(Page):
     "A `Page` whose tab is closed through the extension"
     async def close(self):
+        "Close this browser tab, including an attached existing tab; leave the connection open"
         try: await self.cdp._action('close-tab', tabId=self.t)
         except RuntimeError: pass
 
@@ -150,6 +152,7 @@ async def attach_page(self:ExtCDP, tid:int|str):
     await self.page.enable(sid=tid)
     return ExtPage(self, tid, tid)
 
+# %% ../nbs/01_ext.ipynb #f288247e
 class ExtTargets(list):
     "Extension tab rows, one line per tab"
     def __repr__(self):

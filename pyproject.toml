@@ -18,8 +18,11 @@ classifiers = [
 dependencies = [
   "websockets",
   "httpx",
-  "fastcore>=2.2.18"
+  "fastcore>=2.2.23"
 ]
+
+[project.optional-dependencies]
+dev = ["pyskills>=0.0.30"]
 
 [project.urls]
 Repository = "https://github.com/AnswerDotAI/fastcdp"

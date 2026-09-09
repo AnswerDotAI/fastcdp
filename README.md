@@ -23,12 +23,12 @@ $ pip install fastcdp
 from fastcdp import *
 ```
 
-Choose one of four connection methods. The `fastcdp.skill` module documentation gives further guidance on choosing:
+Choose one of four connection methods. Read `doc(fastcdp.skill)` for browser-selection and ownership guidance, then the chosen method’s full docs:
 
-- `cdp = await CDP.launch()` starts a new, disposable instance of your installed Chrome. No setup is required.
-- `cdp = await CDP.connect()` attaches to your everyday Chrome, version 146 or later. Enable “Allow remote debugging” in `chrome://inspect/#remote-debugging` first. Chrome gives you 60 seconds to approve each new client.
-- `cdp = await CDP.remote()` attaches to a Chrome instance with a debug port. Its default port is 9223. `fastcdp-setup` creates a launcher for a browser with this configuration.
-- `cdp = await ExtCDP.listen()` waits for the [fastcdp-chrome](https://github.com/AnswerDotAI/fastcdp-chrome) extension to connect from your everyday browser. This needs no browser flags or permission popups.
+- `cdp = await CDP.launch()` starts or reuses Chrome with a separate automation profile. The default profile persists between runs.
+- `cdp = await CDP.connect()` attaches to an everyday Chrome with remote debugging enabled and the user’s approval.
+- `cdp = await CDP.remote()` attaches to a dedicated debug browser. `fastcdp-setup` creates a launcher for this configuration.
+- `cdp = await ExtCDP.listen()` waits for the [fastcdp-chrome](https://github.com/AnswerDotAI/fastcdp-chrome) extension in the requested browser.
 
 This walkthrough uses `connect`:
 
@@ -70,7 +70,7 @@ await cdp.eval('document.title', sid)
 
     '8. Database Transactions — PlanetScale'
 
-[`Page`](https://AnswerDotAI.github.io/fastcdp/core.html#page) holds a tab’s session. Its methods use that session without requiring a `sid` argument:
+[`Page`](https://AnswerDotAI.github.io/fastcdp/core.html#page) holds a tab’s session. Its helpers bind `sid`. Read `doc(page)` to discover those helpers and protocol domains, then `doc(page.goto)` or `doc(page.DOM.focus)` for a selected operation. Connection-wide operations such as creating tabs remain on `page.cdp`:
 
 ``` python
 page = await cdp.new_page()
