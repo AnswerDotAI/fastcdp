@@ -20,7 +20,7 @@ def _probe_ok(conn, req):
     if 'Upgrade' not in req.headers: return conn.respond(200, 'fastcdp\n')
 
 class ExtChannel:
-    "Listen for the extension to dial in, then speak duplex JSON frames with it"
+    "Accept an extension connection and exchange JSON frames in both directions."
     def __init__(self): self._replies,self.events,self._id = {},asyncio.Queue(),0
 
     @classmethod
@@ -55,7 +55,7 @@ class ExtChannel:
     async def send(self, **msg): await self._ws.send(json.dumps(msg))
 
     async def request(self, timeout:int=15, **msg):
-        "Send `msg` with a correlation `id` and await the reply frame bearing that id"
+        "Send `msg` with a new correlation id and wait for the matching reply."
         self._id += 1
         mid = msg['id'] = self._id
         f = asyncio.get_running_loop().create_future()
@@ -77,7 +77,7 @@ class ExtChannel:
 
 # %% ../nbs/01_ext.ipynb #451d9654
 class ExtCDP(CDP):
-    "CDP spoken with a companion extension, as JSON frames over a channel to it"
+    "Exchange CDP messages with a companion extension over a JSON channel."
     @classmethod
     async def connect(cls,
         chan:ExtChannel, # A connected channel to the extension
@@ -95,7 +95,7 @@ class ExtCDP(CDP):
         timeout:float=None, # Max seconds to wait for the extension
         debug:bool=None # Print events as they arrive?
     ):
-        "Listen on `port` and speak CDP with the first extension that dials in"
+        "Listen on `port` and return a CDP connection when an extension connects."
         chan = await ExtChannel.listen(port=port, token=token)
         await chan.wait_peer(timeout)
         return await cls.connect(chan, debug=debug)
@@ -112,13 +112,13 @@ class ExtCDP(CDP):
         return obj2dict(await self.chan.request(**msg))
 
     async def _action(self, action, **kw):
-        "Extension-side lifecycle operations that have no CDP equivalent"
+        "Request a tab operation through the extension's browser APIs."
         r = await self.chan.request(action=action, **kw)
         if 'error' in r: raise RuntimeError(f"{action}: {r['error']}")
         return obj2dict(r['result'])
 
     async def close(self):
-        "Disconnect the extension channel and stop event tasks; leave the user's tabs and browser open"
+        "Disconnect the channel and cancel event tasks. Leave the user's tabs and browser open."
         self._pump.cancel()
         if (t := getattr(self, '_dialog_task', None)): t.cancel()
         await self.chan.close()
@@ -128,22 +128,22 @@ class ExtCDP(CDP):
 
 # %% ../nbs/01_ext.ipynb #25d27b88
 class ExtPage(Page):
-    "A `Page` whose tab is closed through the extension"
+    "Control a browser tab through the extension's `Page` interface."
     async def close(self):
-        "Close this browser tab, including an attached existing tab; leave the connection open"
+        "Close this tab, even if it existed before attachment. Leave the connection open."
         try: await self.cdp._action('close-tab', tabId=self.t)
         except RuntimeError: pass
 
 @patch
 async def new_page(self:ExtCDP, url:str='about:blank', active:bool=False):
-    "Open a new browser tab and return a `Page` driving it"
+    "Open a browser tab and return its `ExtPage`."
     tid = (await self._action('new-tab', url=url, active=active))['tabId']
     await self.page.enable(sid=tid)
     return ExtPage(self, tid, tid)
 
 @patch
 async def attach_page(self:ExtCDP, tid:int|str):
-    "Attach to an existing tab and return a `Page` driving it; takes the integer `tabId` or hex target `id` from `pages`"
+    "Attach to a tab by integer `tabId` or hex target `id` from `pages`. Return an `ExtPage`."
     if isinstance(tid, str):
         tabs = {t['id']:t['tabId'] for t in await self.pages}
         if tid not in tabs: raise KeyError(f'no tab with target id {tid}')
