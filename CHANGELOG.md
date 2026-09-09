@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.16
+
+### Bugs Squashed
+
+- CLI must not return ([#24](https://github.com/AnswerDotAI/fastcdp/issues/24))
+
+
 ## 0.0.15
 
 ### New Features
