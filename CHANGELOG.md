@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.14
+
+### New Features
+
+- Rework skill and API docs for discovery, add `ax_click` and `drop_files`, make dialog handling per-session, and tighten Page attribute resolution ([#22](https://github.com/AnswerDotAI/fastcdp/issues/22))
+
+
 ## 0.0.13
 
 ### New Features
