@@ -840,24 +840,37 @@ async def _bounded(action, name, timeout):
     except TimeoutError as e: raise TimeoutError(f'{name} timed out after {timeout:g}s') from e
 
 @patch
+async def _hover_center(self:CDP, target:str|int, sid:str=None):
+    bid = await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
+    while True:
+        try:
+            x,y = await self._scroll_center(bid, sid)
+            await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
+            return await self._node_center(bid, sid)
+        except RuntimeError:
+            if not isinstance(target, str): raise
+            new_bid = await self.sel_backend_id(target, sid=sid)
+            if new_bid == bid: raise
+            bid = new_bid
+
+@patch
 async def hover(self:CDP,
-    backendNodeId:int, # Node to hover, e.g. from `AXNode.find_id`
+    target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
+    timeout:float=5, # Maximum seconds for the whole hover
 ):
     "Scroll a node into view and move the mouse to its center, firing its hover events and CSS `:hover`"
-    x,y = await self._scroll_center(backendNodeId, sid)
-    await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
+    await _bounded(self._hover_center(target, sid), 'hover', timeout)
 
 @patch
 async def click(self:CDP,
-    backendNodeId:int, # Node, e.g. from `AXNode.find_id`
+    target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds for the whole click
 ):
     "Click with real mouse movement, hover, press and release; inspect the page before retrying a timeout"
     async def _click():
-        await self.hover(backendNodeId, sid=sid)
-        x,y = await self._node_center(backendNodeId, sid) # hover-gated UI can change the box
+        x,y = await self._hover_center(target, sid)
         for t in ('mousePressed', 'mouseReleased'):
             await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
     await _bounded(_click(), 'click', timeout)
@@ -1297,13 +1310,13 @@ async def sel_exists(self:CDP, sel:str, sid:str=None)->bool:
 @patch
 async def sel_click(self:CDP, sel:str, sid:str=None):
     "`click` the first element matching CSS selector `sel`"
-    await self.click(await self.sel_backend_id(sel, sid=sid), sid=sid)
+    await self.click(sel, sid=sid)
 
 # %% ../nbs/00_core.ipynb #e8dd8522
 @patch
 async def sel_hover(self:CDP, sel:str, sid:str=None):
     "`hover` the first element matching CSS selector `sel`"
-    await self.hover(await self.sel_backend_id(sel, sid=sid), sid=sid)
+    await self.hover(sel, sid=sid)
 
 # %% ../nbs/00_core.ipynb #cfa599f3
 @patch
