@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.17
+
+### New Features
+
+- Accept CSS selectors in click and hover, retrying on replaced nodes, with a shared hover-center helper and a hover timeout ([#25](https://github.com/AnswerDotAI/fastcdp/issues/25))
+
+
 ## 0.0.16
 
 ### Bugs Squashed
