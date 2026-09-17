@@ -222,7 +222,7 @@ async def launch(cls:CDP,
     args = [f'--user-data-dir={d}', '--remote-debugging-port=0', '--no-first-run', '--no-default-browser-check']
     if headless: args.append('--headless=new')
     proc = await asyncio.create_subprocess_exec(chrome or chrome_bin(), *args,
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        stdout=asyncio.subprocess.DEVNULL)
     try:
         deadline = asyncio.get_event_loop().time() + timeout
         while not f.exists():
@@ -1272,8 +1272,7 @@ async def drop_files(self:CDP,
 ):
     "Drop files onto a node with native drag events"
     async def _drop():
-        bid = await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
-        x,y = await self._scroll_center(bid, sid)
+        x,y = await self._hover_center(target, sid)
         data = dict(items=[], files=[str(p) for p in paths], dragOperationsMask=1)
         for typ in ('dragEnter', 'dragOver', 'drop'): await self.input.dispatchDragEvent(sid=sid, type=typ, x=x, y=y, data=data)
     await _bounded(_drop(), 'drop_files', timeout)
