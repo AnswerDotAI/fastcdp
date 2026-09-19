@@ -44,7 +44,7 @@ version = {attr = "fastcdp.__version__"}
 include = ["fastcdp"]
 
 [tool.setuptools.package-data]
-fastcdp = ["*.json", "icons/*"]
+fastcdp = ["*.json", "*.js", "icons/*"]
 
 [tool.nbdev]
 allowed_metadata_keys = ['solveit']

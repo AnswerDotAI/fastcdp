@@ -18,6 +18,7 @@ import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
 from html.parser import HTMLParser
 from tempfile import TemporaryDirectory
+from importlib.resources import files
 from .setup import testing_chrome
 
 # %% ../nbs/00_core.ipynb #930c2391
@@ -1157,6 +1158,13 @@ async def wait_for_frame(self:CDP,
 )->WSFrames:
     "Poll `ws_frames` until a frame matches; returns the matching frames"
     return await wait_until(lambda: self.ws_frames(pattern, sent, sid), f'a websocket frame matching: {pattern}', timeout, sleep=0.05)
+
+# %% ../nbs/00_core.ipynb #13f44eb5
+@patch
+async def run_qunit(self:CDP, tests:str, sid:str=None):
+    "Run QUnit tests in a fresh test page; return counts and failures."
+    js = (files('fastcdp')/'qunit.js').read_text()
+    return await self.eval(f'({js})({json.dumps(tests)})', sid)
 
 # %% ../nbs/00_core.ipynb #3a8381b9
 @patch
