@@ -215,5 +215,4 @@ d = { 'settings': { 'branch': 'main',
                                'fastcdp.setup.chrome_path': ('setup.html#chrome_path', 'fastcdp/setup.py'),
                                'fastcdp.setup.install_chrome': ('setup.html#install_chrome', 'fastcdp/setup.py'),
                                'fastcdp.setup.main': ('setup.html#main', 'fastcdp/setup.py'),
-                               'fastcdp.setup.testing_chrome': ('setup.html#testing_chrome', 'fastcdp/setup.py')},
-            'fastcdp.skill': {}}}
+                               'fastcdp.setup.testing_chrome': ('setup.html#testing_chrome', 'fastcdp/setup.py')}}}
