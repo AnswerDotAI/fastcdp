@@ -381,8 +381,11 @@ async def wait_event(self:CDP, event:str, timeout:int=10):
 # %% ../nbs/00_core.ipynb #1d2f0ec0
 @patch
 async def wait_for(self:CDP, expr:str, sid:str=None, timeout:int=10):
-    "Wait for JS expression to be truthy, return its value"
-    return await wait_until(lambda: self.eval(expr, sid), expr, timeout, sleep=0.05)
+    "Wait for JS expression to be truthy in the page, return its value"
+    # A DOM node comes back by value as an empty dict, which Python reads as false. So the page judges truth, and returns a truthy
+    # value inside a one-item list.
+    probe = f'(async () => {{ const v = await (\n{expr}\n); return v ? [v] : null }})()'
+    return (await wait_until(lambda: self.eval(probe, sid), expr, timeout, sleep=0.05))[0]
 
 @patch
 async def wait_for_selector(self:CDP,
