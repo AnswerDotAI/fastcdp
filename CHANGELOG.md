@@ -2,6 +2,18 @@
 
 <!-- do not remove -->
 
+## 0.0.18
+
+### New Features
+
+- Add replace option to CDP.type to select all before typing, with empty text clearing the focused control ([#28](https://github.com/AnswerDotAI/fastcdp/issues/28))
+- Add CDP.`run_qunit` to run QUnit tests in-page by loading QUnit from CDN, shipping qunit.js as package data ([#26](https://github.com/AnswerDotAI/fastcdp/issues/26))
+
+### Bugs Squashed
+
+- Fix `wait_for` to judge truthiness in JS so DOM nodes and other empty-by-value results are returned instead of timing out ([#27](https://github.com/AnswerDotAI/fastcdp/issues/27))
+
+
 ## 0.0.17
 
 ### New Features
