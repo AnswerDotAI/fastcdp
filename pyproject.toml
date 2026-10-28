@@ -41,7 +41,7 @@ fastcdp-setup = "fastcdp.setup:main"
 version = {attr = "fastcdp.__version__"}
 
 [tool.setuptools.packages.find]
-include = ["fastcdp"]
+include = ["fastcdp", "fastcdp.*"]
 
 [tool.setuptools.package-data]
 fastcdp = ["*.json", "*.js", "icons/*"]
