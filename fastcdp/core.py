@@ -965,11 +965,15 @@ async def press(self:CDP,
 async def type(self:CDP,
     text:str, # Characters to press, one key event pair each. Line breaks press Enter
     sid:str=None, # Session to send to
+    replace:bool=False, # Select all first; empty text clears
 ):
     """Press each character of `text` as key events at the current focus.
 
     LF, CRLF, and CR line breaks press Enter, which can submit a form or trigger a shortcut. Use `fill_text` to replace a control's contents without key events.
     """
+    if replace:
+        await self.press('a', mod=True, sid=sid)
+        if not text: await self.press('Backspace', sid=sid)
     for ch in text.replace('\r\n', '\n').replace('\r', '\n'): await self.press('Enter' if ch == '\n' else ch, sid=sid)
 
 # %% ../nbs/00_core.ipynb #c126d3d4
