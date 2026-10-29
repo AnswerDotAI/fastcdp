@@ -802,21 +802,22 @@ async def attrs(self:CDP, target:str|int, sid:str=None)->dict:
 @patch
 async def js_node(self:CDP,
     fn:str, # JS function declaration, called with the node as `this`
-    backendNodeId:int, # Node, e.g. from `AXNode.find_id`
+    target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
 ):
     "Call function `fn` on a DOM node, returning the protocol result"
-    obj = await self.DOM.resolveNode(sid=sid, backendNodeId=backendNodeId)
+    if isinstance(target, str): target = await self.sel_backend_id(target, sid=sid)
+    obj = await self.DOM.resolveNode(sid=sid, backendNodeId=target)
     return await self.runtime.callFunctionOn(sid=sid, functionDeclaration=fn, objectId=obj['objectId'])
 
 @patch
 async def js_node_run(self:CDP,
     code:str, # JS statements, with the node as `this`
-    backendNodeId:int, # Node, e.g. from `AXNode.find_id`
+    target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
 ):
     "Run `code` with a DOM node as `this`"
-    return await self.js_node(f'function() {{ {code} }}', backendNodeId, sid=sid)
+    return await self.js_node(f'function() {{ {code} }}', target, sid=sid)
 
 # %% ../nbs/00_core.ipynb #2f5c4582
 @patch
@@ -919,12 +920,12 @@ async def dom_click(self:CDP,
 # %% ../nbs/00_core.ipynb #f512a6f2
 @patch
 async def fill_text(self:CDP,
-    backendNodeId:int, # The text control, e.g. from `AXNode.find_id`
+    target:str|int, # CSS selector or backend node id of the text control
     text:str, # Text to type into it
     sid:str=None, # Session the node lives in
 ):
     "Focus and select a text control, then replace its contents with native text insertion, without key events"
-    await self.js_node_run('this.focus(); this.select()', backendNodeId, sid=sid)
+    await self.js_node_run('this.focus(); this.select()', target, sid=sid)
     await self.input.insertText(sid=sid, text=text)
 
 # %% ../nbs/00_core.ipynb #008b674e
@@ -1209,7 +1210,8 @@ class Rungs:
     ): self.page,self.times = page,[]
     def __call__(self,
         name:str, # Name of the step, as in `Rung`
-    ): return Rung(name, self.page, times=self.times)
+        page=None, # Override the default page for this rung
+    ): return Rung(name, self.page if page is None else page, times=self.times)
     def __repr__(self): return '\n'.join(f'{secs:7.3f} {nm}' for nm,secs in self.times)
 
 # %% ../nbs/00_core.ipynb #ba9aa533
@@ -1257,12 +1259,12 @@ def dialogs(self:Page):
 # %% ../nbs/00_core.ipynb #3e7c8028
 @patch
 async def select_option(self:CDP,
-    backendNodeId:int, # The `<select>` node, e.g. from `AXNode.find_id`
+    target:str|int, # CSS selector or backend node id of the `<select>`
     value:str, # Option value to select
     sid:str=None, # Session the node lives in
 ):
     "Set a `<select>` element's value and fire its change event"
-    await self.js_node_run(f'this.value = {json.dumps(value)}; this.dispatchEvent(new Event("change", {{bubbles:true}}))', backendNodeId, sid=sid)
+    await self.js_node_run(f'this.value = {json.dumps(value)}; this.dispatchEvent(new Event("change", {{bubbles:true}}))', target, sid=sid)
 
 @patch
 async def wait_for_text(self:CDP,
@@ -1352,6 +1354,17 @@ async def sel_count(self:CDP, sel:str, sid:str=None)->int:
 async def sel_map(self:CDP, sel:str, fn:str, sid:str=None)->list:
     "JS function `fn` applied to every element matching CSS selector `sel`, in document order"
     return await self.eval(f'[...document.querySelectorAll({json.dumps(sel)})].map({fn})', sid)
+
+@patch
+async def sel_prop(self:CDP, sel:str, name:str, sid:str=None):
+    "Live property `name` of the first matching element, or None"
+    return await self.eval(f'document.querySelector({json.dumps(sel)})?.[{json.dumps(name)}]', sid)
+
+@patch
+async def wait_for_prop(self:CDP, sel:str, name:str, value, sid:str=None, timeout:int=10):
+    "Wait for an element's live property to equal `value` (JS strict equality)"
+    expr = f'(() => {{ const e = document.querySelector({json.dumps(sel)}); return !!e && e[{json.dumps(name)}] === {json.dumps(value)} }})()'
+    return await self.wait_for(expr, sid, timeout)
 
 # %% ../nbs/00_core.ipynb #9b976ce3
 @patch
