@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.19
+
+### New Features
+
+- Support htmx 4 in `expect_htmx` with swap/request event aliases, listen on document, and read request path from ctx or pathInfo ([#29](https://github.com/AnswerDotAI/fastcdp/issues/29))
+
+
 ## 0.0.18
 
 ### New Features
