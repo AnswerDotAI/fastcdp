@@ -1297,16 +1297,21 @@ async def drop_files(self:CDP,
 @asynccontextmanager
 async def expect_htmx(self:CDP,
     path:str, # Substring the htmx request's path must contain
-    event:str='htmx:afterSettle', # Completion event: `htmx:afterSettle` once swapped in, `htmx:afterRequest` once answered
+    event:str='swap', # 'swap' waits for DOM updates, 'request' for the response; or a literal event name
     sid:str=None, # Session of the page
     timeout:float=10, # Maximum seconds to wait after the action
 ):
     "An async context manager: arm the htmx listener before the action in its block, then wait for the matching event"
     n = await self.eval('window.__htmx_n = (window.__htmx_n || 0) + 1', sid)
-    await self.eval(f'''window.__htmx_{n} = false;
-document.body.addEventListener({json.dumps(event)}, function h(e) {{
-  if (!e.detail.pathInfo.requestPath.includes({json.dumps(path)})) return;
-  window.__htmx_{n} = true; document.body.removeEventListener({json.dumps(event)}, h) }})''', sid)
+    await self.eval(f'''(() => {{ window.__htmx_{n} = false;
+const four = window.htmx?.version?.startsWith('4.');
+const name = {{swap: four ? 'htmx:after:swap' : 'htmx:afterSettle',
+              request: four ? 'htmx:after:request' : 'htmx:afterRequest'}}[{json.dumps(event)}];
+const event = name ? (four ? name.replaceAll(':', htmx.config.metaCharacter) : name) : {json.dumps(event)};
+document.addEventListener(event, function h(e) {{
+  const path = e.detail.ctx?.request?.action ?? e.detail.pathInfo?.requestPath;
+  if (!path?.includes({json.dumps(path)})) return;
+  window.__htmx_{n} = true; document.removeEventListener(event, h) }}) }})()''', sid)
     yield
     await self.wait_for(f'window.__htmx_{n}', sid, timeout)
 
