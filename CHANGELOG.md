@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.20
+
+### New Features
+
+- Accept CSS selectors in `js_node`/`fill_text`/`select_option`, add `sel_prop` and `wait_for_prop`, allow per-rung page override in Rungs ([#30](https://github.com/AnswerDotAI/fastcdp/issues/30))
+
+
 ## 0.0.19
 
 ### New Features
