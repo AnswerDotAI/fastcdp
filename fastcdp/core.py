@@ -872,12 +872,13 @@ async def click(self:CDP,
     target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds for the whole click
+    shift:bool=False, # Hold Shift during the click
 ):
     "Click with real mouse movement, hover, press and release; inspect the page before retrying a timeout"
     async def _click():
         x,y = await self._hover_center(target, sid)
         for t in ('mousePressed', 'mouseReleased'):
-            await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1)
+            await self.input.dispatchMouseEvent(sid=sid, type=t, x=x, y=y, button='left', clickCount=1, modifiers=8 if shift else 0)
     await _bounded(_click(), 'click', timeout)
 
 # %% ../nbs/00_core.ipynb #bde15213
@@ -1329,9 +1330,9 @@ async def sel_exists(self:CDP, sel:str, sid:str=None)->bool:
     return await self.eval(f'!!document.querySelector({json.dumps(sel)})', sid)
 
 @patch
-async def sel_click(self:CDP, sel:str, sid:str=None):
+async def sel_click(self:CDP, sel:str, sid:str=None, shift:bool=False):
     "`click` the first element matching CSS selector `sel`"
-    await self.click(sel, sid=sid)
+    await self.click(sel, sid=sid, shift=shift)
 
 # %% ../nbs/00_core.ipynb #e8dd8522
 @patch
