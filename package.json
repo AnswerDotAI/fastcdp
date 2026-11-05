@@ -1,0 +1,11 @@
+{
+  "name": "@fastcdp/vitest",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": "./fastcdp/vitest-provider.mjs",
+  "files": ["fastcdp/vitest-provider.mjs", "fastcdp/vitest-locators.mjs"],
+  "peerDependencies": {
+    "@vitest/browser": "^5.1.0",
+    "vitest": "^5.1.0"
+  }
+}

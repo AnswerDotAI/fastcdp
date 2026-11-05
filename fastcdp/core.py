@@ -931,6 +931,7 @@ async def fill_text(self:CDP,
 
 # %% ../nbs/00_core.ipynb #008b674e
 _keys = dict(
+    Alt=('AltLeft',18,''), Control=('ControlLeft',17,''), Meta=('MetaLeft',91,''), Shift=('ShiftLeft',16,''),
     Enter=('Enter',13,'\r'), Tab=('Tab',9,'\t'), Escape=('Escape',27,''), Backspace=('Backspace',8,''),
     Delete=('Delete',46,''), ArrowLeft=('ArrowLeft',37,''), ArrowUp=('ArrowUp',38,''),
     ArrowRight=('ArrowRight',39,''), ArrowDown=('ArrowDown',40,''), Home=('Home',36,''),
@@ -946,8 +947,9 @@ async def press(self:CDP,
     alt:bool=False, # Hold Alt/Option
     meta:bool=False, # Hold Meta/Command
     mod:bool=False, # Hold the platform primary modifier: Command on macOS, Control elsewhere
+    down:bool=None, # None presses and releases; True sends only keyDown, False only keyUp, using the supplied modifier flags
 ):
-    "Send one key press, with modifiers, as real `keydown`/`keyup` events"
+    "Send a full native key press, or one key down/up event"
     if mod:
         if platform.system() == 'Darwin': meta = True
         else: ctrl = True
@@ -960,8 +962,8 @@ async def press(self:CDP,
     if mods not in (0,8): text = ''
     kw = dict(sid=sid, modifiers=mods, key=key, code=code, windowsVirtualKeyCode=vk, nativeVirtualKeyCode=vk)
     cmds = [_edit_cmds[key]] if meta and key in _edit_cmds else []
-    await self.input.dispatchKeyEvent(type='keyDown', text=text, commands=cmds, **kw)
-    await self.input.dispatchKeyEvent(type='keyUp', **kw)
+    if down is not False: await self.input.dispatchKeyEvent(type='keyDown', text=text, commands=cmds, **kw)
+    if down is not True: await self.input.dispatchKeyEvent(type='keyUp', **kw)
 
 @patch
 async def type(self:CDP,
