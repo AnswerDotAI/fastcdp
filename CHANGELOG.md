@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.22
+
+### New Features
+
+- Add fastcdp.vitest to run Vitest Browser Mode on existing Chrome via native CDP input; add down= option to press for separate key events ([#32](https://github.com/AnswerDotAI/fastcdp/issues/32))
+
+
 ## 0.0.21
 
 ### New Features
