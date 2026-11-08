@@ -148,10 +148,11 @@ async def _action(self:Vitest, m):
     if m.action == 'keyboard': return await self._keyboard(m.actions, m.unreleased)
     if m.action == 'cleanup': return await self._keyboard([], m.unreleased, auto_close=True)
     if m.action == 'tab': return await p.press('Tab', shift=m.get('shift', False))
-    target = await self._node(m, m.get('target') or dict(selector='body'))
+    resolve = lambda: self._node(m, m.get('target') or dict(selector='body'))
     options = m.get('options') or {}
-    if m.action == 'click': return await p.click(target, timeout=options.get('timeout', 5000)/1000)
-    if m.action == 'hover': return await p.hover(target, timeout=options.get('timeout', 5000)/1000)
+    if m.action == 'click': return await p.click(resolve, timeout=options.get('timeout', 5000)/1000)
+    if m.action == 'hover': return await p.hover(resolve, timeout=options.get('timeout', 5000)/1000)
+    target = await resolve()
     if m.action in ('fill', 'clear'): return await p.fill_text(target, m.get('text', ''))
     if m.action == 'type':
         if not options.get('skipClick'): await p.DOM.focus(backendNodeId=target)

@@ -26,6 +26,12 @@ test('native typing, shortcuts, focus and click', async ({ onTestFinished }) => 
   await expect.element(code).toHaveFocus()
   await code.clear()
   await code.fill('42')
+  button.style.cssText = 'display: block; margin-top: 100vh'
+  window.addEventListener('scroll', () => {
+    const replacement = button.cloneNode(true)
+    replacement.onclick = button.onclick
+    button.replaceWith(replacement)
+  }, { once: true })
   await page.getByRole('button', { name: 'Run' }).click()
   await expect.element(page.getByRole('status')).toHaveTextContent('42')
   expect(events.length).toBeGreaterThan(5)

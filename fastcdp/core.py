@@ -16,6 +16,7 @@ from fastcore.net import is_port_free, wait_port_free_async
 from fastcore.aio import wait_until
 import shutil, websockets, json, platform, asyncio, inspect, base64, httpx
 from contextlib import asynccontextmanager
+from collections.abc import Callable
 from html.parser import HTMLParser
 from tempfile import TemporaryDirectory
 from importlib.resources import files
@@ -845,22 +846,28 @@ async def _bounded(action, name, timeout):
     except TimeoutError as e: raise TimeoutError(f'{name} timed out after {timeout:g}s') from e
 
 @patch
-async def _hover_center(self:CDP, target:str|int, sid:str=None):
-    bid = await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
+async def _hover_center(self:CDP, target, sid:str=None):
+    async def resolve():
+        if callable(target): return await target()
+        return await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
+    bid = await resolve()
     while True:
         try:
-            x,y = await self._scroll_center(bid, sid)
-            await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
-            return await self._node_center(bid, sid)
+            await self.scroll_to(bid, sid=sid)
+            new_bid = await resolve()
+            if new_bid == bid:
+                x,y = await self._node_center(bid, sid)
+                await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
+                new_bid = await resolve()
+                if new_bid == bid: return await self._node_center(bid, sid)
         except RuntimeError:
-            if not isinstance(target, str): raise
-            new_bid = await self.sel_backend_id(target, sid=sid)
+            new_bid = await resolve()
             if new_bid == bid: raise
-            bid = new_bid
+        bid = new_bid
 
 @patch
 async def hover(self:CDP,
-    target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
+    target:str|int|Callable, # CSS selector, backend node id, or async lookup returning a backend id
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds for the whole hover
 ):
@@ -869,7 +876,7 @@ async def hover(self:CDP,
 
 @patch
 async def click(self:CDP,
-    target:str|int, # CSS selector or backend node id, e.g. from `AXNode.find_id`
+    target:str|int|Callable, # CSS selector, backend node id, or async lookup returning a backend id
     sid:str=None, # Session the node lives in
     timeout:float=5, # Maximum seconds for the whole click
     shift:bool=False, # Hold Shift during the click
@@ -891,10 +898,12 @@ async def ax_click(self:CDP,
     timeout:float=5, # Maximum seconds for the click
 ):
     "Find the first matching node in a fresh accessibility tree and click it"
-    root = await self.ax_tree(sid=sid, frame_id=frame_id)
-    bid = root.find_id(role, name)
-    if bid is None: raise ValueError(f'No accessibility node matching role={role!r}, name={name!r}')
-    await self.click(bid, sid=sid, timeout=timeout)
+    async def resolve():
+        root = await self.ax_tree(sid=sid, frame_id=frame_id)
+        bid = root.find_id(role, name)
+        if bid is None: raise ValueError(f'No accessibility node matching role={role!r}, name={name!r}')
+        return bid
+    await self.click(resolve, sid=sid, timeout=timeout)
 
 # %% ../nbs/00_core.ipynb #67fddc8c
 @patch
