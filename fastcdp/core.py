@@ -162,6 +162,9 @@ async def __call__(self:CDP, method:str, sid:str=None, **params):
 @patch
 async def close(self:CDP):
     "Disconnect and cancel event tasks; leave the browser and its tabs open"
+    for sid in getattr(self, '_dom_text', {}):
+        try: await self.stop_dom_text(sid=sid)
+        except RuntimeError: pass
     self._keep.cancel()
     self._reader.cancel()
     if (t := getattr(self, '_dialog_task', None)): t.cancel()
@@ -441,6 +444,8 @@ class Page:
 @patch
 async def close(self:Page):
     "Close this tab, including an attached existing tab; close the connection only when owned"
+    try: await self.cdp.stop_dom_text(sid=self.sid)
+    except RuntimeError: pass
     # Ignore errors if already closed
     try: await self.cdp.target.closeTarget(targetId=self.t)
     except RuntimeError: pass
@@ -610,6 +615,7 @@ class AXNode:
     def __init__(self, raw:dict):
         self.role = nested_idx(raw, 'role', 'value') or ''
         self.name = nested_idx(raw, 'name', 'value') or ''
+        self.description = nested_idx(raw, 'description', 'value') or ''
         self.props = {p['name']: nested_idx(p, 'value', 'value') for p in raw.get('properties', [])}
         self.children,self.parent = [],None
         self.node_id = raw.get('nodeId')
@@ -670,35 +676,43 @@ async def ax_tree(self:CDP,
     return build_ax_tree(await self.accessibility.getFullAXTree(sid=sid, **kwargs))
 
 # %% ../nbs/00_core.ipynb #92b49b0c
+def _ax_nodes(node, role, name, exact, within):
+    if within is not None: node = node.find(*within, exact=True)
+    if node is None: return
+    matches = name is None or (node.name.strip() == name.strip() if exact else name in node.name)
+    if (not role or role == node.role) and matches: yield node
+    for child in node.children: yield from _ax_nodes(child, role, name, exact, None)
+
 @patch
 def find(self:AXNode,
     role:str=None, # Accessibility role to match exactly, e.g. 'button'
-    name:str=None, # Substring of the accessible name to match
+    name:str=None, # Case-sensitive accessible name substring
+    exact:bool=False, # Compare names after trimming outer whitespace, without changing case or interior whitespace
+    within:tuple[str,str]=None, # Search inside the first exact (role, name) match in this tree
 ):
-    "Find first descendant matching role and/or name substring"
-    if (not role or role == self.role) and (not name or name in self.name): return self
-    for c in self.children:
-        if (r := c.find(role, name)): return r
+    "Find the first matching node, including this node"
+    return next(_ax_nodes(self, role, name, exact, within), None)
 
 @patch
 def find_id(self:AXNode,
     role:str=None, # Accessibility role to match exactly, e.g. 'button'
-    name:str=None, # Substring of the accessible name to match
+    name:str=None, # Case-sensitive accessible name substring
+    exact:bool=False, # Compare names after trimming outer whitespace, without changing case or interior whitespace
+    within:tuple[str,str]=None, # Search inside the first exact (role, name) match in this tree
 )->int: # The backend node id, for `click`, `fill_text` and friends; None if no match
-    "Find first descendant matching role and/or name substring, and return its backend id"
-    res = self.find(role, name)
+    "Find the first matching node and return its backend id"
+    res = self.find(role, name, exact, within)
     return res.backend_id if res else None
 
 @patch
 def find_all(self:AXNode,
     role:str=None, # Accessibility role to match exactly, e.g. 'button'
-    name:str=None, # Substring of the accessible name to match
+    name:str=None, # Case-sensitive accessible name substring
+    exact:bool=False, # Compare names after trimming outer whitespace, without changing case or interior whitespace
+    within:tuple[str,str]=None, # Search inside the first exact (role, name) match in this tree
 ):
-    "Find all descendants matching role and/or name substring"
-    res = []
-    if (not role or role == self.role) and (not name or name in self.name): res.append(self)
-    for c in self.children: res += c.find_all(role, name)
-    return res
+    "Find every matching node, including this node"
+    return list(_ax_nodes(self, role, name, exact, within))
 
 # %% ../nbs/00_core.ipynb #60c26818
 @patch
@@ -896,11 +910,13 @@ async def ax_click(self:CDP,
     sid:str=None, # Session containing the target
     frame_id:str=None, # Frame to read; the session's main frame if None
     timeout:float=5, # Maximum seconds for the click
+    exact:bool=False, # Compare names after trimming outer whitespace, without changing case or interior whitespace
+    within:tuple[str,str]=None, # Search inside the first exact (role, name) match, resolved afresh for each lookup
 ):
     "Find the first matching node in a fresh accessibility tree and click it"
     async def resolve():
         root = await self.ax_tree(sid=sid, frame_id=frame_id)
-        bid = root.find_id(role, name)
+        bid = root.find_id(role, name, exact=exact, within=within)
         if bid is None: raise ValueError(f'No accessibility node matching role={role!r}, name={name!r}')
         return bid
     await self.click(resolve, sid=sid, timeout=timeout)
@@ -1037,11 +1053,13 @@ async def wait_for_ax(self:CDP,
     sid:str=None, # Session to wait in
     frame_id:str=None, # Frame to read; the session's main frame if None
     timeout:int=10, # Seconds to wait before raising
+    exact:bool=False, # Compare names after trimming outer whitespace, without changing case or interior whitespace
+    within:tuple[str,str]=None, # Search inside the first exact (role, name) match, resolved afresh for each tree
 ):
     "Poll `ax_tree` until a node matches `role`/`name` (as in `find`) and `pred`; returns the fresh tree"
     async def _found():
         t = await self.ax_tree(sid=sid, frame_id=frame_id)
-        if t is not None and any(pred is None or pred(n) for n in t.find_all(role, name)): return t
+        if t is not None and any(pred is None or pred(n) for n in t.find_all(role, name, exact=exact, within=within)): return t
     return await wait_until(_found, f'ax node role={role!r} name={name!r}', timeout)
 
 # %% ../nbs/00_core.ipynb #37e1324c
@@ -1063,10 +1081,14 @@ class _EvtBuf:
     "Accumulate events from subscribed queues, draining on read"
     def __init__(self, cdp, *events):
         self.q,self.items = asyncio.Queue(),[]
+        self.cdp,self.events = cdp,events
         for e in events: cdp._events.setdefault(e, []).append(self.q)
     def drain(self, sid=None):
         while not self.q.empty(): self.items.append(self.q.get_nowait())
         return [m for m in self.items if m.get('sessionId') == sid] if sid else self.items
+    def close(self):
+        self.drain()
+        for e in self.events: self.cdp._events[e].remove(self.q)
 
 # %% ../nbs/00_core.ipynb #de5cc516
 def _fmt_console(m):
@@ -1085,6 +1107,91 @@ async def console(self:CDP, pattern:str=None, sid:str=None):
     "Console/exception messages buffered since `start_console`, filtered by regex `pattern`"
     res = [_fmt_console(m) for m in self._console.drain(sid)]
     return [s for s in res if re.search(pattern, s)] if pattern else res
+
+# %% ../nbs/00_core.ipynb #92b9aec1
+_dom_binding = '__fastcdp_dom_text'
+
+def _dom_rows(buf, sid):
+    buf.items = [m for m in buf.drain(sid) if m['params']['name'] == _dom_binding]
+    return buf.items
+
+@patch
+async def start_dom_text(self:CDP,
+    sel:str, # CSS selector whose matching elements' trimmed textContent to record
+    sid:str=None, # Session of a top-level page; child-frame sessions are not supported
+):
+    "Start a fresh DOM text history for the top-level document, preserving future records across navigation"
+    await self.stop_dom_text(sid=sid)
+    captures = self._dom_text = getattr(self, '_dom_text', {})
+    cap = captures[sid] = AttrDict(buf=_EvtBuf(self, 'Runtime.bindingCalled'), script=None)
+    source = r"""(() => {
+if (window !== window.top) return;
+const sel = SEL, seen = new WeakMap();
+const read = e => {
+    const text = e.textContent.trim();
+    if (seen.get(e) === text) return;
+    seen.set(e, text);
+    if (text) window.__fastcdp_dom_text(text);
+};
+const scan = n => {
+    if (n.nodeType === 1 && n.matches(sel)) read(n);
+    if (n.querySelectorAll) n.querySelectorAll(sel).forEach(read);
+};
+window.__fastcdp_dom_text_observer = new MutationObserver(ms => {
+    for (const m of ms) for (const n of [...m.addedNodes, ...m.removedNodes]) scan(n);
+    scan(document);
+});
+window.__fastcdp_dom_text_observer.observe(document, {subtree:true, childList:true, characterData:true, attributes:true});
+scan(document);
+})()""".replace('SEL', json.dumps(sel))
+    try:
+        await self.runtime.enable(sid=sid)
+        await self.runtime.addBinding(sid=sid, name=_dom_binding)
+        cap.script = await self.page.addScriptToEvaluateOnNewDocument(sid=sid, source=source, runImmediately=True)
+    except BaseException:
+        cap.buf.close()
+        try: await self.runtime.removeBinding(sid=sid, name=_dom_binding)
+        except RuntimeError: pass
+        raise
+
+@patch
+async def dom_text(self:CDP,
+    clear:bool=False, # Clear the returned history after reading it
+    sid:str=None, # Session whose DOM text history to read
+)->list[str]:
+    "Texts recorded since `start_dom_text`, including elements removed before this read"
+    cap = self._dom_text[sid]
+    rows = _dom_rows(cap.buf, sid)
+    if clear: cap.buf.items = []
+    return [m['params']['payload'] for m in rows]
+
+@patch
+async def consume_dom_text(self:CDP,
+    text:str, # Exact recorded text to remove, after trimming outer whitespace
+    sid:str=None, # Session whose DOM text history to consume
+)->bool: # Whether one matching occurrence was found and removed
+    "Consume one occurrence, leaving all other recorded texts and later occurrences intact"
+    cap = self._dom_text[sid]
+    match = first(m for m in _dom_rows(cap.buf, sid) if m['params']['payload'] == text.strip())
+    if match is None: return False
+    cap.buf.items.remove(match)
+    return True
+
+@patch
+async def stop_dom_text(self:CDP,
+    sid:str=None, # Session whose DOM text capture to stop
+):
+    "Stop capture and remove its browser hooks, keeping the recorded history readable"
+    cap = getattr(self, '_dom_text', {}).get(sid)
+    if cap is None or cap.script is None: return
+    try:
+        try: await self.eval('window.__fastcdp_dom_text_observer?.disconnect()', sid=sid)
+        finally:
+            try: await self.page.removeScriptToEvaluateOnNewDocument(sid=sid, identifier=cap.script)
+            finally: await self.runtime.removeBinding(sid=sid, name=_dom_binding)
+    finally:
+        cap.buf.close()
+        cap.script = None
 
 # %% ../nbs/00_core.ipynb #d096afc1
 @patch
@@ -1196,6 +1303,9 @@ async def evidence(self:CDP, pattern:str=None, sid:str=None):
         errs = [r for r in await self.requests(pattern, sid=sid) if r[0] >= 400]
         res.append(f'error responses: {errs}')
     if hasattr(self, '_ws'): res.append(f'frames:\n{await self.ws_frames(sid=sid)!r}')
+    if hasattr(self, '_dom_text'):
+        texts = [text for s in self._dom_text if sid is None or sid == s for text in await self.dom_text(sid=s)]
+        res.append(f'dom text: {texts}')
     return '\n'.join(res)
 
 # %% ../nbs/00_core.ipynb #8a1f967e
