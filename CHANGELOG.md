@@ -2,6 +2,14 @@
 
 <!-- do not remove -->
 
+## 0.0.23
+
+### New Features
+
+- Add DOM text capture (start/stop/`consume_dom_text`), exact and within scoping for AX find/click/wait, and AXNode.description ([#34](https://github.com/AnswerDotAI/fastcdp/issues/34))
+- Let hover/click accept async lookup callables and re-resolve targets after scrolling to handle nodes replaced during preparation ([#33](https://github.com/AnswerDotAI/fastcdp/issues/33))
+
+
 ## 0.0.22
 
 ### New Features
