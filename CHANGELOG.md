@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.24
+
+### New Features
+
+- Add `text_sel` option to evidence, Rung and Rungs to include rendered page text (capped at 3000 chars) in failure reports ([#35](https://github.com/AnswerDotAI/fastcdp/issues/35))
+
+
 ## 0.0.23
 
 ### New Features
