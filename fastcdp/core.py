@@ -1295,8 +1295,12 @@ async def run_qunit(self:CDP, tests:str, sid:str=None):
 
 # %% ../nbs/00_core.ipynb #3a8381b9
 @patch
-async def evidence(self:CDP, pattern:str=None, sid:str=None):
-    "Debugging buffers as one report: console tail, error responses (urls matching `pattern`), and ws frames, for each capture that was started"
+async def evidence(self:CDP,
+    pattern:str=None, # URL regex for error responses
+    sid:str=None, # Session whose captures to report
+    text_sel:str=None, # CSS selector whose rendered text to include, capped at 3,000 characters
+):
+    "Report captured console, failed requests, websocket frames, and optional rendered page text"
     res = []
     if hasattr(self, '_console'): res.append(f'console: {(await self.console(sid=sid))[-8:]}')
     if hasattr(self, '_network'):
@@ -1306,6 +1310,9 @@ async def evidence(self:CDP, pattern:str=None, sid:str=None):
     if hasattr(self, '_dom_text'):
         texts = [text for s in self._dom_text if sid is None or sid == s for text in await self.dom_text(sid=s)]
         res.append(f'dom text: {texts}')
+    if text_sel:
+        text = '\n'.join(await self.sel_map(text_sel, 'e => e.innerText || ""', sid=sid))
+        res.append(f'page text:\n{truncstr(text, 3000)}')
     return '\n'.join(res)
 
 # %% ../nbs/00_core.ipynb #8a1f967e
@@ -1315,6 +1322,7 @@ class Rung:
         name:str, # Name of this step, quoted in the failure
         page=None, # `Page` (or `CDP`) whose debugging buffers join the failure; None attaches nothing
         times:list=None, # Log gaining `(name, seconds)` on exit; `Rungs` supplies a shared one
+        text_sel:str=None, # CSS selector whose rendered text to include on failure
     ): store_attr()
     async def __aenter__(self):
         self.t0 = asyncio.get_event_loop().time()
@@ -1322,18 +1330,19 @@ class Rung:
     async def __aexit__(self, typ, val, tb):
         if self.times is not None: self.times.append((self.name, asyncio.get_event_loop().time()-self.t0))
         if typ is None: return
-        ev = await self.page.evidence() if self.page is not None else ''
+        ev = await self.page.evidence(text_sel=self.text_sel) if self.page is not None else ''
         raise AssertionError(f'rung {self.name!r}: {val}\n{ev}') from val
 
 class Rungs:
     "Rung factory sharing one page and a timing log; display it for per-rung times"
     def __init__(self,
         page=None, # `Page` (or `CDP`) passed to every rung
-    ): self.page,self.times = page,[]
+        text_sel:str=None, # CSS selector whose rendered text to include on failure
+    ): self.page,self.times,self.text_sel = page,[],text_sel
     def __call__(self,
         name:str, # Name of the step, as in `Rung`
         page=None, # Override the default page for this rung
-    ): return Rung(name, self.page if page is None else page, times=self.times)
+    ): return Rung(name, self.page if page is None else page, times=self.times, text_sel=self.text_sel)
     def __repr__(self): return '\n'.join(f'{secs:7.3f} {nm}' for nm,secs in self.times)
 
 # %% ../nbs/00_core.ipynb #ba9aa533
