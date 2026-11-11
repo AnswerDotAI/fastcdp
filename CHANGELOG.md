@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.25
+
+### New Features
+
+- Make pointer prep wait for a stable node center across scroll and hover, retrying up to 10 times instead of looping forever ([#36](https://github.com/AnswerDotAI/fastcdp/issues/36))
+
+
 ## 0.0.24
 
 ### New Features
