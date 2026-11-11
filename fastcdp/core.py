@@ -865,15 +865,16 @@ async def _hover_center(self:CDP, target, sid:str=None):
         if callable(target): return await target()
         return await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
     bid = await resolve()
-    while True:
+    for _ in range(10):
         try:
+            pos = await self._node_center(bid, sid)
             await self.scroll_to(bid, sid=sid)
             new_bid = await resolve()
-            if new_bid == bid:
-                x,y = await self._node_center(bid, sid)
+            if new_bid == bid and pos == await self._node_center(bid, sid):
+                x,y = pos
                 await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
                 new_bid = await resolve()
-                if new_bid == bid: return await self._node_center(bid, sid)
+                if new_bid == bid and pos == await self._node_center(bid, sid): return pos
         except RuntimeError:
             new_bid = await resolve()
             if new_bid == bid: raise
