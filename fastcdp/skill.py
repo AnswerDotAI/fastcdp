@@ -1,36 +1,37 @@
+# NB: this file is designed for an LLM reader, not a human. Add it to your LLM's context and ask it to explain.
 r"""Work with Chrome through the DevTools Protocol: inspect pages, interact with controls, and diagnose browser applications.
 
-Choose the browser before connecting. An everyday browser carries the user's logged-in sessions: use one only when the user names it; if a task needs logins and none is named, ask; otherwise use a separate automation profile.
+notation: /why
 
-# Choose a connection
+## Browser: choose before connecting
 
-- Explicitly requested everyday browser: the companion extension (`ExtCDP`) when available. Direct access (`CDP.connect`) requires the user to enable remote debugging and approve the connection popup; it finds the browser with `cdp_conninfo`, which reads a profile's `DevToolsActivePort`.
-- Dedicated debug browser: `CDP.remote`; `fastcdp-setup` creates its launcher.
-- Separate automation profile: inspect `CDP.launch`.
-- Isolated tests, no existing cookies/logins: `async with CDP.testing(headless=True) as cdp:` owns a Chrome for Testing process and temporary profile, both cleaned up on exit. Install it explicitly with `fastcdp-setup --install stable` (`--with-deps` on Debian/Ubuntu); real-Chrome launchers, profiles, and connection modes are untouched.
+- user's everyday browser (their logins): only when they name it: `ExtCDP` companion extension where available, else `CDP.connect`; task needs logins, none named: ask
+- otherwise, separate automation profile: `CDP.launch`
+- dedicated debug browser: `CDP.remote`; launcher: `fastcdp-setup`
+- isolated tests: `async with CDP.testing(headless=True) as cdp:`; install: `fastcdp-setup --install stable` (`--with-deps` on Debian, Ubuntu; real Chrome untouched)
+- tabs: work in background (`new_page(background=True)`) unless bringing one forward is the task
+- never close user's tabs or quit their browser as routine cleanup    /connection ≠ tab ownership
 
-Read the chosen method's docs before calling it; once connected, inspect the connection for tab creation, attachment, and cleanup. Work in background tabs unless bringing one forward is part of the request. Don't close the user's tabs or quit their browser as routine cleanup; read the relevant `close`/`quit` docs: tab ownership and connection ownership are different.
+## Discover
 
-# Discover the actual object
+- protocol: `xdir(page.DOM, 'focus')` → `doc(page.DOM.focus)`; by description: `cdp_search(q)`
+- returned tree, result: `doc()` its type    /displaying shows page content, not methods
+- browser commands async; tree inspection sync; context managers: `async with`
 
-Read `doc(page)` after obtaining a page: it lists its bound helpers and protocol domains; connection-wide operations stay on `page.cdp`. Search large surfaces by name, then read the chosen operation in full:
+## Act, verify
 
-    xdir(page, 'wait|click|text')
-    doc(page.goto, page.fill_text)
-    xdir(page.DOM, 'focus')
-    doc(page.DOM.focus)
+- page: through its accessibility tree; locate content before expanding large subtrees
+- target observed node ids or known selectors, not guessed coordinates; activation or input method: one firing the events the app needs
+- wait for an observable result, no sleep-and-retry; events as evidence: subscribe before acting
+- activation timed out: inspect page before retrying    /action may already have happened
 
-Use `cdp_search` to search protocol descriptions rather than names. Inspect returned tree/result types for their own APIs; displaying a tree shows page content, not method docs. Overview lines aren't full docs: read the bound callable, with its parameter comments and usage notes, before use. Those distinguish text insertion from key events, document readiness from application readiness, and protocol result fields from returned values. Browser commands are async; tree inspection is sync; context managers use `async with`.
+## Debug, design
 
-# Read, act, verify
-
-Understand a page through its accessibility tree; locate relevant content before expanding large subtrees; use observed node ids or known selectors rather than guessed coordinates; choose activation/input methods for the events the application needs. Wait for an observable result instead of sleeping and retrying; subscribe before an action when its events are the evidence. After a timed-out activation, inspect the page before considering another attempt: the action may already have happened.
-
-Debugging: start the relevant console/network/websocket capture before reproducing. Dialog auto-answering changes page behaviour, so configure it deliberately, not as incidental logging setup. Use the captured evidence to tell a missing request from a missing UI update. Wrap each reproduction step in a rung from `Rungs(page)`: a failing rung names its step and carries the page's captured evidence; displaying the `Rungs` shows each step's time.
-
-Design: compare computed styles with matching rules before changing CSS; try changes in the live page, verify them at the relevant viewport sizes, then copy them into the source stylesheet (page changes don't update project files).
-
-In safepyrun, browser-control permission is the host's decision; importing this skill doesn't grant it; inspect `cdp_yolo` when that permission is explicitly needed.
+- before reproducing: start relevant capture (`start_console`, `start_network`, `start_ws`)    /tells a missing request from a missing UI update
+- `handle_dialogs` changes page behaviour: set deliberately, not as logging setup
+- one `Rungs(page)` rung per reproduction step
+- CSS: compare computed styles with matching rules before changing; try in live page, verify at relevant viewport sizes, copy into source stylesheet    /page changes don't update project files
+- safepyrun: browser control is the host's decision, not granted by importing; explicitly needed: see `cdp_yolo`
 """
 
 from fastcdp.core import *
