@@ -2,7 +2,10 @@
 
 `Vitest` owns the test runner and its tabs. It connects to CDP Chrome on port 9223 unless you pass an existing `CDP` connection. It never launches or quits Chrome.
 
-Install the provider in your JavaScript project with `@fastcdp/vitest` and its `vitest` and `@vitest/browser` peers. In a local checkout, use a `file:` dependency pointing at this repository. Configure Browser Mode with `provider: fastcdp()` from `@fastcdp/vitest` and one `{ browser: 'chromium' }` instance.
+Install `vitest` and `@vitest/browser` in your JavaScript project. `Vitest.run()` supplies `FASTCDP_VITEST_PROVIDER`, a file URL
+for the provider bundled with this Python package. Import it in your Vitest config with
+`const {fastcdp} = await import(process.env.FASTCDP_VITEST_PROVIDER)`, then configure Browser Mode with
+`provider: fastcdp()` and one `{ browser: 'chromium' }` instance. No JavaScript fastcdp package or source checkout is needed.
 
 Use ordinary `vitest-browser-svelte` rendering, Vitest locators and `expect.element`. Clicks, filling, typing, modifier shortcuts and Tab use native Chrome input. Holding non-modifier keys and unsupported action options raise errors. The provider does not install or launch a browser.
 
@@ -61,7 +64,8 @@ class Vitest:
         try:
             with TemporaryDirectory(prefix='fastcdp-vitest-') as tmp:
                 report = Path(tmp)/'results.json'
-                run_env = {**os.environ, **(env or {}), 'FASTCDP_VITEST': f'ws://127.0.0.1:{chan.port}/?token={token}'}
+                run_env = {**os.environ, **(env or {}), 'FASTCDP_VITEST': f'ws://127.0.0.1:{chan.port}/?token={token}',
+                    'FASTCDP_VITEST_PROVIDER': (files('fastcdp')/'vitest-provider.mjs').as_uri()}
                 self._proc = await asyncio.create_subprocess_exec('node', str(files('fastcdp')/'vitest-runner.mjs'),
                     str(self.root), str(report), *filters, cwd=self.root, env=run_env,
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
