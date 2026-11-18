@@ -370,7 +370,7 @@ async def eval(self:CDP,
 @patch
 @asynccontextmanager
 async def on(self:CDP, *events:str):
-    "Subscribe to `events` for the scope of the block, yielding the queue their frames arrive on"
+    "Yield an event queue scoped by `async with cdp.on('Network.requestWillBeSent') as queue`."
     q = asyncio.Queue()
     for e in events: self._events.setdefault(e, []).append(q)
     try: yield q
