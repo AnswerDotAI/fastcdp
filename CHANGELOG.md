@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.27
+
+### New Features
+
+- Add `ax_fill`, `set_files` and `sel_visible` helpers; factor shared accessibility lookup into `_ax_id` for `ax_click` and `ax_fill` ([#39](https://github.com/AnswerDotAI/fastcdp/issues/39))
+
+
 ## 0.0.26
 
 ### New Features
