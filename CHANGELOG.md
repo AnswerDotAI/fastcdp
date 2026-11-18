@@ -2,6 +2,14 @@
 
 <!-- do not remove -->
 
+## 0.0.26
+
+### New Features
+
+- Run Vitest in a hidden CDP target with no visible tab or window instead of a background page ([#38](https://github.com/AnswerDotAI/fastcdp/issues/38))
+- Bundle Vitest provider in Python package and expose it via `FASTCDP_VITEST_PROVIDER` so no JS fastcdp package or checkout is needed ([#37](https://github.com/AnswerDotAI/fastcdp/issues/37))
+
+
 ## 0.0.25
 
 ### New Features
