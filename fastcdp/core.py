@@ -904,6 +904,13 @@ async def click(self:CDP,
     await _bounded(_click(), 'click', timeout)
 
 # %% ../nbs/00_core.ipynb #bde15213
+async def _ax_id(cdp, role, name, sid, frame_id, exact, within):
+    root = await cdp.ax_tree(sid=sid, frame_id=frame_id)
+    bid = root.find_id(role, name, exact=exact, within=within)
+    if bid is None: raise ValueError(f'No accessibility node matching role={role!r}, name={name!r}')
+    return bid
+
+
 @patch
 async def ax_click(self:CDP,
     role:str=None, # Accessibility role to match exactly
@@ -915,11 +922,7 @@ async def ax_click(self:CDP,
     within:tuple[str,str]=None, # Search inside the first exact (role, name) match, resolved afresh for each lookup
 ):
     "Find the first matching node in a fresh accessibility tree and click it"
-    async def resolve():
-        root = await self.ax_tree(sid=sid, frame_id=frame_id)
-        bid = root.find_id(role, name, exact=exact, within=within)
-        if bid is None: raise ValueError(f'No accessibility node matching role={role!r}, name={name!r}')
-        return bid
+    async def resolve(): return await _ax_id(self, role, name, sid, frame_id, exact, within)
     await self.click(resolve, sid=sid, timeout=timeout)
 
 # %% ../nbs/00_core.ipynb #67fddc8c
@@ -954,6 +957,20 @@ async def fill_text(self:CDP,
     "Focus and select a text control, then replace its contents with native text insertion, without key events"
     await self.js_node_run('this.focus(); this.select()', target, sid=sid)
     await self.input.insertText(sid=sid, text=text)
+
+# %% ../nbs/00_core.ipynb #90004cbf
+@patch
+async def ax_fill(self:CDP,
+    role:str, # Accessibility role to match exactly
+    name:str, # Case-sensitive substring of the accessible name
+    text:str, # Text to replace the control's contents
+    sid:str=None, # Session containing the target
+    frame_id:str=None, # Frame to read; the session's main frame if None
+    exact:bool=False, # Compare names after trimming outer whitespace, without changing case or interior whitespace
+    within:tuple[str,str]=None, # Search inside the first exact (role, name) match
+):
+    "Find a text control in a fresh accessibility tree and replace its contents"
+    await self.fill_text(await _ax_id(self, role, name, sid, frame_id, exact, within), text, sid=sid)
 
 # %% ../nbs/00_core.ipynb #008b674e
 _keys = dict(
@@ -1411,6 +1428,16 @@ async def wait_for_text(self:CDP,
     expr = f'{src}.includes({json.dumps(text)})'
     return await self.wait_for(expr if present else f'!({expr})', sid, timeout)
 
+# %% ../nbs/00_core.ipynb #0db49ab5
+@patch
+async def set_files(self:CDP,
+    sel:str, # CSS selector of the file input
+    paths:list[str|Path], # Absolute file paths on the Chrome host; empty clears the input
+    sid:str=None, # Session containing the input
+):
+    "Set a file input's selected files, firing its input and change events"
+    await self.DOM.setFileInputFiles(sid=sid, nodeId=await self.sel_node(sel, sid=sid), files=[str(p) for p in paths])
+
 # %% ../nbs/00_core.ipynb #c7df0d1e
 @patch
 async def drop_files(self:CDP,
@@ -1459,6 +1486,11 @@ async def sel_text(self:CDP, sel:str, sid:str=None):
 async def sel_exists(self:CDP, sel:str, sid:str=None)->bool:
     "Whether any element matches CSS selector `sel`"
     return await self.eval(f'!!document.querySelector({json.dumps(sel)})', sid)
+
+@patch
+async def sel_visible(self:CDP, sel:str, sid:str=None)->bool:
+    "Whether the first matching element has a visible box; absent elements return False"
+    return await self.eval(f'!!document.querySelector({json.dumps(sel)})?.checkVisibility({{visibilityProperty:true, opacityProperty:true}})', sid)
 
 @patch
 async def sel_click(self:CDP, sel:str, sid:str=None, shift:bool=False):
