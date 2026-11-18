@@ -1,6 +1,6 @@
 """Run Vitest against an existing Chrome through fastcdp
 
-`Vitest` owns the test runner and its tabs. It connects to CDP Chrome on port 9223 unless you pass an existing `CDP` connection. It never launches or quits Chrome.
+`Vitest` owns the test runner and its hidden page, which has no visible tab or window. It connects to CDP Chrome on port 9223 unless you pass an existing `CDP` connection. It never launches or quits Chrome.
 
 Install `vitest` and `@vitest/browser` in your JavaScript project. `Vitest.run()` supplies `FASTCDP_VITEST_PROVIDER`, a file URL
 for the provider bundled with this Python package. Import it in your Vitest config with
@@ -140,7 +140,9 @@ async def _keyboard(self:Vitest, actions, unreleased=(), auto_close=False):
 @patch
 async def _action(self:Vitest, m):
     if m.action == 'open':
-        if self.page is None: self.page = await self.cdp.new_page(background=True)
+        if self.page is None:
+            target = await self.cdp.target.createTarget(url='about:blank', background=True, hidden=True)
+            self.page = await self.cdp.attach_page(target)
         self.url = m.url
         await self.page.network.enable()
         await self.page.network.setCacheDisabled(cacheDisabled=True)
