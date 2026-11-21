@@ -35,6 +35,7 @@ fastcdp = "fastcdp._modidx:d"
 fastcdp = "fastcdp.skill"
 [project.scripts]
 fastcdp-setup = "fastcdp.setup:main"
+fastcdp-vitest-bridge = "fastcdp.vitest:bridge_main"
 
 
 [tool.setuptools.dynamic]
@@ -44,7 +45,7 @@ version = {attr = "fastcdp.__version__"}
 include = ["fastcdp", "fastcdp.*"]
 
 [tool.setuptools.package-data]
-fastcdp = ["*.json", "*.js", "vitest-*.mjs", "icons/*"]
+fastcdp = ["*.json", "*.js", "icons/*"]
 
 [tool.nbdev]
 allowed_metadata_keys = ['solveit']

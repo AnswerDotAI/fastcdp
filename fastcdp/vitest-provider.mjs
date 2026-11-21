@@ -1,12 +1,27 @@
-import { createRequire } from 'node:module'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  defineBrowserProvider, parseKeyDef, resolveScreenshotPath,
+  assertBrowserApiWrite, assertBrowserFileAccess,
+} from '@vitest/browser'
 
-const require = createRequire(join(process.cwd(), 'package.json'))
-const { defineBrowserProvider, parseKeyDef, resolveScreenshotPath, assertBrowserApiWrite, assertBrowserFileAccess } =
-  await import(pathToFileURL(require.resolve('@vitest/browser')))
+function startBridge() {
+  const proc = spawn('fastcdp-vitest-bridge', [], { stdio: ['pipe', 'pipe', 'inherit'] })
+  const url = new Promise((resolve, reject) => {
+    let buf = ''
+    proc.once('error', err => reject(new Error(`Failed to start fastcdp-vitest-bridge: ${err.message}`)))
+    proc.once('exit', (code, signal) => reject(new Error(`fastcdp-vitest-bridge exited before ready (code=${code}, signal=${signal})`)))
+    proc.stdout.setEncoding('utf8')
+    proc.stdout.on('data', chunk => {
+      buf += chunk
+      const nl = buf.indexOf('\n')
+      if (nl !== -1) resolve(buf.slice(0, nl).trim())
+    })
+  })
+  return { proc, url }
+}
 
 function checkOptions(options = {}, allowed = []) {
   for (const key of Object.keys(options)) {
@@ -24,33 +39,12 @@ export function fastcdp() {
 class FastCDPProvider {
   name = 'fastcdp'
   supportsParallelism = false
+  initScripts = [fileURLToPath(new URL('./vitest-locators.mjs', import.meta.url))]
   pending = new Map()
   id = 0
   constructor(project) {
-    if (!process.env.FASTCDP_VITEST) throw new Error('Run these tests with Python fastcdp.vitest.Vitest')
-    const script = join(project.config.root, '.vitest/fastcdp/locators.mjs')
-    mkdirSync(dirname(script), { recursive: true })
-    const source = readFileSync(new URL('./vitest-locators.mjs', import.meta.url), 'utf8')
-      .replace("'@vitest/browser/locators'", JSON.stringify(require.resolve('@vitest/browser/locators')))
-    writeFileSync(script, source)
-    this.initScripts = [script]
-    this.ws = new WebSocket(process.env.FASTCDP_VITEST)
-    this.ready = new Promise((resolve, reject) => {
-      this.ws.addEventListener('open', resolve, { once: true })
-      this.ws.addEventListener('error', reject, { once: true })
-    })
-    this.ws.addEventListener('message', ({ data }) => {
-      const message = JSON.parse(data)
-      const pending = this.pending.get(message.id)
-      if (!pending) return
-      this.pending.delete(message.id)
-      if (message.error) pending.reject(new Error(message.error))
-      else pending.resolve(message.result)
-    })
-    this.ws.addEventListener('close', () => {
-      for (const pending of this.pending.values()) pending.reject(new Error('fastcdp connection closed'))
-      this.pending.clear()
-    })
+    this.ready = this._connect()
+    this.ready.catch(() => {})
     const command = (action, payload) => async (context, ...args) => this.call(action, {
       sessionId: context.sessionId, testPath: context.testPath, ...payload(...args),
     })
@@ -85,6 +79,32 @@ class FastCDPProvider {
     }
     for (const [name, fn] of Object.entries(commands)) project.browser.registerCommand(`__vitest_${name}`, fn)
   }
+  async _connect() {
+    let url = process.env.FASTCDP_VITEST
+    if (!url) {
+      const bridge = startBridge()
+      this.bridge = bridge.proc
+      url = await bridge.url
+    }
+    const ws = new WebSocket(url)
+    this.ws = ws
+    ws.addEventListener('message', ({ data }) => {
+      const message = JSON.parse(data)
+      const pending = this.pending.get(message.id)
+      if (!pending) return
+      this.pending.delete(message.id)
+      if (message.error) pending.reject(new Error(message.error))
+      else pending.resolve(message.result)
+    })
+    ws.addEventListener('close', () => {
+      for (const pending of this.pending.values()) pending.reject(new Error('fastcdp connection closed'))
+      this.pending.clear()
+    })
+    await new Promise((resolve, reject) => {
+      ws.addEventListener('open', resolve, { once: true })
+      ws.addEventListener('error', () => reject(new Error(`Failed to connect to fastcdp bridge at ${url}`)), { once: true })
+    })
+  }
   async call(action, payload) {
     await this.ready
     const id = ++this.id
@@ -95,5 +115,21 @@ class FastCDPProvider {
   }
   getCommandsContext() { return {} }
   async openPage(sessionId, url) { await this.call('open', { sessionId, url }) }
-  async close() { await this.ready; this.ws.close() }
+  async close() {
+    try { await this.ready } catch {}
+    if (this.ws && this.ws.readyState < WebSocket.CLOSING) this.ws.close()
+    if (this.bridge) {
+      const proc = this.bridge
+      this.bridge = null
+      proc.stdin.end()
+      if (proc.exitCode === null && proc.signalCode === null) {
+        proc.kill('SIGTERM')
+        await new Promise(resolve => {
+          const timer = setTimeout(() => { proc.kill('SIGKILL'); resolve() }, 3000)
+          timer.unref()
+          proc.once('exit', () => { clearTimeout(timer); resolve() })
+        })
+      }
+    }
+  }
 }

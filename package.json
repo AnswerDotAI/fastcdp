@@ -2,10 +2,21 @@
   "name": "@fastcdp/vitest",
   "version": "0.0.1",
   "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^26.12.1"
+    }
+  },
   "exports": "./fastcdp/vitest-provider.mjs",
   "files": ["fastcdp/vitest-provider.mjs", "fastcdp/vitest-locators.mjs"],
   "peerDependencies": {
     "@vitest/browser": "^5.1.0",
     "vitest": "^5.1.0"
+  },
+  "devDependencies": {
+    "@vitest/browser": "^5.1.0",
+    "vite-plus": "1.7.0"
   }
 }

@@ -2,14 +2,11 @@
 
 `Vitest` owns the test runner and its hidden page, which has no visible tab or window. It connects to CDP Chrome on port 9223 unless you pass an existing `CDP` connection. It never launches or quits Chrome.
 
-Install `vitest` and `@vitest/browser` in your JavaScript project. `Vitest.run()` supplies `FASTCDP_VITEST_PROVIDER`, a file URL
-for the provider bundled with this Python package. Import it in your Vitest config with
-`const {fastcdp} = await import(process.env.FASTCDP_VITEST_PROVIDER)`, then configure Browser Mode with
-`provider: fastcdp()` and one `{ browser: 'chromium' }` instance. No JavaScript fastcdp package or source checkout is needed.
+Install `vite-plus`, `@vitest/browser`, and `@fastcdp/vitest` in your JavaScript project. Import `fastcdp` from `@fastcdp/vitest` in `vite.config.js` and configure Browser Mode with `provider: fastcdp()` and one `{ browser: 'chromium' }` instance. Run `vp test` or `vp test watch` directly (the provider spawns `fastcdp-vitest-bridge` automatically), or drive runs from Python with `Vitest`.
 
 Use ordinary `vitest-browser-svelte` rendering, Vitest locators and `expect.element`. Clicks, filling, typing, modifier shortcuts and Tab use native Chrome input. Holding non-modifier keys and unsupported action options raise errors. The provider does not install or launch a browser.
 
-`run` accepts the same filename filters as Vitest. Its result contains `success`, `testModules` and `unhandledErrors`. Each module contains test names, result states, diagnostics and assertion errors. Runner output is in `output`. Repeating `run` reuses the owned tab. The last component remains available for inspection until `close`.
+`run` accepts the same filename filters as `vp test`. It returns Vitest's native JSON report (`testResults`, `numPassedTests`, and so on) with `returncode` and combined `success`. Runner output is in `output`. Repeating `run` reuses the owned tab. The last component remains available for inspection until `close`.
 
 ```python
 from fastcdp.vitest import Vitest
@@ -21,14 +18,14 @@ async with Vitest('/path/to/svelte-project') as vt:
 ```
 """
 
-__all__ = ['Vitest']
+__all__ = ['Vitest', 'bridge_main']
 
 from fastcore.utils import *
+from fastcore.script import call_parse
 from .core import CDP
 from .ext import ExtChannel
-from importlib.resources import files
 from tempfile import TemporaryDirectory
-import asyncio, contextlib, json, secrets
+import asyncio, contextlib, json, secrets, signal, sys
 
 class Vitest:
     "Run browser tests with fastcdp; retain the last test page until `close`."
@@ -53,9 +50,9 @@ class Vitest:
     async def run(self,
         *filters:str, # Standard Vitest test-file filters
         env:dict=None, # Additional environment, e.g. the app's Rustygate URL
-        timeout:float=60, # Seconds to wait for the Node runner; shutdown gets another five seconds
+        timeout:float=60, # Seconds to wait for `vp test`; shutdown gets another five seconds
     ):
-        "Return structured Vitest results, including failed assertions and unhandled errors."
+        "Return structured Vitest results, including failed assertions and nonzero exit status."
         if self._proc is not None: raise RuntimeError('A Vitest run is already active')
         if self.cdp is None: self.cdp = await CDP.remote()
         token = secrets.token_urlsafe()
@@ -64,17 +61,19 @@ class Vitest:
         try:
             with TemporaryDirectory(prefix='fastcdp-vitest-') as tmp:
                 report = Path(tmp)/'results.json'
-                run_env = {**os.environ, **(env or {}), 'FASTCDP_VITEST': f'ws://127.0.0.1:{chan.port}/?token={token}',
-                    'FASTCDP_VITEST_PROVIDER': (files('fastcdp')/'vitest-provider.mjs').as_uri()}
-                self._proc = await asyncio.create_subprocess_exec('node', str(files('fastcdp')/'vitest-runner.mjs'),
-                    str(self.root), str(report), *filters, cwd=self.root, env=run_env,
+                run_env = {**os.environ, **(env or {}), 'FASTCDP_VITEST': f'ws://127.0.0.1:{chan.port}/?token={token}'}
+                self._proc = await asyncio.create_subprocess_exec('vp', 'test', '--reporter=default', '--reporter=json',
+                    f'--outputFile={report}', *filters, cwd=self.root, env=run_env,
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
                 comm = asyncio.create_task(self._proc.communicate())
                 try:
                     out,_ = await asyncio.wait_for(asyncio.shield(comm), timeout)
                     self.output = out.decode()
                     if not report.exists(): raise RuntimeError(self.output)
-                    return dict2obj(report.read_json())
+                    data = report.read_json()
+                    data['returncode'] = self._proc.returncode
+                    data['success'] = bool(data.get('success')) and self._proc.returncode == 0
+                    return dict2obj(data)
                 finally:
                     if self._proc.returncode is None:
                         self._proc.terminate()
@@ -169,3 +168,45 @@ async def _action(self:Vitest, m):
         return await p.page.captureScreenshot(clip=dict(x=min(xs), y=min(ys), width=max(xs)-min(xs), height=max(ys)-min(ys), scale=1),
             captureBeyondViewport=True)
     raise ValueError(f'Unsupported fastcdp action: {m.action}')
+
+
+async def _serve_bridge(port:int):
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        with contextlib.suppress(NotImplementedError): loop.add_signal_handler(sig, stop.set)
+    vt = Vitest()
+    vt.cdp = await CDP.remote(port)
+    async with vt:
+        token = secrets.token_urlsafe()
+        chan = await ExtChannel.listen(port=0, token=token)
+        pump = asyncio.create_task(vt._commands(chan))
+        fd = None
+        def _on_stdin():
+            nonlocal fd
+            try:
+                if os.read(fd, 1024): return
+            except OSError: pass
+            loop.remove_reader(fd)
+            fd = None
+            stop.set()
+        if not sys.stdin.isatty():
+            try:
+                fd = sys.stdin.fileno()
+                loop.add_reader(fd, _on_stdin)
+            except (AttributeError, OSError, NotImplementedError): fd = None
+        try:
+            print(f'ws://127.0.0.1:{chan.port}/?token={token}', flush=True)
+            await stop.wait()
+        finally:
+            if fd is not None: loop.remove_reader(fd)
+            pump.cancel()
+            with contextlib.suppress(asyncio.CancelledError): await pump
+            await chan.close()
+
+@call_parse
+def bridge_main(
+    port:int=None, # Chrome CDP debug port (default: FASTCDP_PORT env or 9223)
+):
+    "Run the fastcdp WebSocket bridge for direct `vp test` runs and print its URL to stdout."
+    asyncio.run(_serve_bridge(port or int(os.environ.get('FASTCDP_PORT', 9223))))

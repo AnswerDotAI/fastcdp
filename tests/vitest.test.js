@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, test } from 'vite-plus/test'
 import { page, userEvent } from 'vitest/browser'
 
 test('native typing, shortcuts, focus and click', async ({ onTestFinished }) => {
@@ -26,13 +26,14 @@ test('native typing, shortcuts, focus and click', async ({ onTestFinished }) => 
   await expect.element(code).toHaveFocus()
   await code.clear()
   await code.fill('42')
-  button.style.cssText = 'display: block; margin-top: 100vh'
+  button.style.cssText = 'display: none; margin-top: 100vh'
   window.addEventListener('scroll', () => {
     const replacement = button.cloneNode(true)
     replacement.onclick = button.onclick
     button.replaceWith(replacement)
   }, { once: true })
-  await page.getByRole('button', { name: 'Run' }).click()
+  setTimeout(() => { button.style.display = 'block' }, 300)
+  await page.getByRole('button', { name: 'Run', includeHidden: true }).click()
   await expect.element(page.getByRole('status')).toHaveTextContent('42')
   expect(events.length).toBeGreaterThan(5)
   expect(events.every(event => event.trusted)).toBe(true)

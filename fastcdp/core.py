@@ -865,7 +865,7 @@ async def _hover_center(self:CDP, target, sid:str=None):
         if callable(target): return await target()
         return await self.sel_backend_id(target, sid=sid) if isinstance(target, str) else target
     bid = await resolve()
-    for _ in range(10):
+    while True:
         try:
             pos = await self._node_center(bid, sid)
             await self.scroll_to(bid, sid=sid)
@@ -875,9 +875,11 @@ async def _hover_center(self:CDP, target, sid:str=None):
                 await self.input.dispatchMouseEvent(sid=sid, type='mouseMoved', x=x, y=y)
                 new_bid = await resolve()
                 if new_bid == bid and pos == await self._node_center(bid, sid): return pos
-        except RuntimeError:
+        except RuntimeError as e:
             new_bid = await resolve()
-            if new_bid == bid: raise
+            if new_bid == bid:
+                if 'Could not compute box model' not in str(e): raise
+                await asyncio.sleep(0.05)
         bid = new_bid
 
 @patch
