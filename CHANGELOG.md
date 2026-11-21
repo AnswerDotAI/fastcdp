@@ -2,6 +2,13 @@
 
 <!-- do not remove -->
 
+## 0.0.28
+
+### New Features
+
+- Switch Vitest runner to vite-plus with auto-spawned fastcdp-vitest-bridge and retry missing box models ([#40](https://github.com/AnswerDotAI/fastcdp/issues/40))
+
+
 ## 0.0.27
 
 ### New Features
