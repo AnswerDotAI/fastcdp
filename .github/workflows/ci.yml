@@ -18,7 +18,7 @@ jobs:
           python-version: '3.13'
       - uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: 'lts/*'
           registry-url: https://registry.npmjs.org
       - run: pip install build
       - run: python -m build

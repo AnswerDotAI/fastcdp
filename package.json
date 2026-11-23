@@ -8,12 +8,6 @@
   },
   "type": "module",
   "packageManager": "pnpm@10.34.9",
-  "devEngines": {
-    "runtime": {
-      "name": "node",
-      "version": "^26.12.1"
-    }
-  },
   "exports": "./fastcdp/vitest-provider.mjs",
   "files": ["fastcdp/vitest-provider.mjs", "fastcdp/vitest-locators.mjs"],
   "peerDependencies": {
