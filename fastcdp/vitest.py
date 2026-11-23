@@ -2,7 +2,7 @@
 
 `Vitest` owns the test runner and its hidden page, which has no visible tab or window. It connects to CDP Chrome on port 9223 unless you pass an existing `CDP` connection. It never launches or quits Chrome.
 
-Install `vite-plus`, `@vitest/browser`, and `@fastcdp/vitest` in your JavaScript project. Import `fastcdp` from `@fastcdp/vitest` in `vite.config.js` and configure Browser Mode with `provider: fastcdp()` and one `{ browser: 'chromium' }` instance. Run `vp test` or `vp test watch` directly (the provider spawns `fastcdp-vitest-bridge` automatically), or drive runs from Python with `Vitest`.
+Install `vite-plus`, `@vitest/browser`, and `fastcdp-vitest` in your JavaScript project. Import `fastcdp` from `fastcdp-vitest` in `vite.config.js` and configure Browser Mode with `provider: fastcdp()` and one `{ browser: 'chromium' }` instance. Run `vp test` or `vp test watch` directly (the provider spawns `fastcdp-vitest-bridge` automatically), or drive runs from Python with `Vitest`.
 
 Use ordinary `vitest-browser-svelte` rendering, Vitest locators and `expect.element`. Clicks, filling, typing, modifier shortcuts and Tab use native Chrome input. Holding non-modifier keys and unsupported action options raise errors. The provider does not install or launch a browser.
 
