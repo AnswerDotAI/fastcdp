@@ -1,6 +1,11 @@
 {
   "name": "fastcdp-vitest",
-  "version": "0.0.1",
+  "version": "0.0.29",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnswerDotAI/fastcdp.git"
+  },
   "type": "module",
   "packageManager": "pnpm@10.34.9",
   "devEngines": {

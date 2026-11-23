@@ -53,3 +53,7 @@ allowed_cell_metadata_keys = ['solveit_ai']
 
 [tool.chkstyle]
 skip_paths = ["_modidx.py"]
+
+[tool.fastship]
+release = "tag"
+version-files = ["package.json"]
