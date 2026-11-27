@@ -7,7 +7,7 @@ name = "fastcdp"
 dynamic = ["version"]
 description = "Lightweight Chrome Debug Protocol (CDP) client for python"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{name = "Jeremy Howard", email = "github@jhoward.fastmail.fm"}]
 keywords = ['nbdev']
@@ -48,6 +48,7 @@ include = ["fastcdp", "fastcdp.*"]
 fastcdp = ["*.json", "*.js", "icons/*"]
 
 [tool.nbdev]
+to_meta = ["export"]
 allowed_metadata_keys = ['solveit']
 allowed_cell_metadata_keys = ['solveit_ai']
 

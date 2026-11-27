@@ -1,31 +1,29 @@
-# NB: this file is designed for an LLM reader, not a human. Add it to your LLM's context and ask it to explain.
 r"""Work with Chrome through the DevTools Protocol: inspect pages, interact with controls, and diagnose browser applications.
 
 notation: /why
 
-## Browser: choose before connecting
+### Browser: choose before connecting
 
 - user's everyday browser (their logins): only when they name it: `ExtCDP` companion extension where available, else `CDP.connect`; task needs logins, none named: ask
-- otherwise, separate automation profile: `CDP.launch`
-- dedicated debug browser: `CDP.remote`; launcher: `fastcdp-setup`
-- isolated tests: `async with CDP.testing(headless=True) as cdp:`; install: `fastcdp-setup --install stable` (`--with-deps` on Debian, Ubuntu; real Chrome untouched)
+- interactive checks: prefer running `CDP.remote()` (`fastcdp-setup` debug browser) with `new_page(background=True)`; separate automation profile: `CDP.launch`
+- automated pytest/CI suites (not ad-hoc desktop checks): `async with CDP.testing(headless=True) as cdp:`; install: `fastcdp-setup --install stable` (`--with-deps` on Debian, Ubuntu; real Chrome untouched)    /spawning Chrome for Testing on macOS activates an app
 - tabs: work in background (`new_page(background=True)`) unless bringing one forward is the task
 - never close user's tabs or quit their browser as routine cleanup    /connection ≠ tab ownership
 
-## Discover
+### Discover
 
 - protocol: `xdir(page.DOM, 'focus')` → `doc(page.DOM.focus)`; by description: `cdp_search(q)`
 - returned tree, result: `doc()` its type    /displaying shows page content, not methods
 - browser commands async; tree inspection sync; context managers: `async with`
 
-## Act, verify
+### Act, verify
 
 - page: through its accessibility tree; locate content before expanding large subtrees
 - target observed node ids or known selectors, not guessed coordinates; activation or input method: one firing the events the app needs
 - wait for an observable result, no sleep-and-retry; events as evidence: subscribe before acting
 - activation timed out: inspect page before retrying    /action may already have happened
 
-## Debug, design
+### Debug, design
 
 - before reproducing: start relevant capture (`start_console`, `start_network`, `start_ws`)    /tells a missing request from a missing UI update
 - `handle_dialogs` changes page behaviour: set deliberately, not as logging setup

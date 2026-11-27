@@ -1,0 +1,17 @@
+---
+title: Vitest
+description: Run Vitest Browser Mode against an existing Chrome through fastcdp
+---
+
+```{python}
+#| echo: false
+import re
+from IPython.display import Markdown, display
+from nbdev.showdoc import show_doc
+import fastcdp.vitest as mod
+from fastcdp.vitest import Vitest, bridge_main
+
+body = re.sub(r'\n+Docs:\s*\S+\s*$', '', '\n\n'.join((mod.__doc__ or '').split('\n\n')[1:]).strip())
+if body: display(Markdown(body))
+for sym in (Vitest, Vitest.run, Vitest.close, bridge_main): display(show_doc(sym))
+```

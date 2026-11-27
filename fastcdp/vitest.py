@@ -16,6 +16,8 @@ async with Vitest('/path/to/svelte-project') as vt:
     result
     await vt.page.screenshot()
 ```
+
+Docs: https://AnswerDotAI.github.io/fastcdp/vitest.html.md
 """
 
 __all__ = ['Vitest', 'bridge_main']

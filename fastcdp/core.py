@@ -1,4 +1,4 @@
-"""Source and API details
+"""CDP client, Page, accessibility tree, network/console/WS capture, and Rungs
 
 Docs: https://AnswerDotAI.github.io/fastcdp/core.html.md"""
 
