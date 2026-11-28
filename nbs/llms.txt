@@ -35,7 +35,7 @@ notation: /why
 - CSS: compare computed styles with matching rules before changing; try in live page, verify at relevant viewport sizes, copy into source stylesheet    /page changes don't update project files
 - safepyrun: browser control is the host's decision, not granted by importing; explicitly needed: see `cdp_yolo`
 
-## Optional
+## Docs
 
 - [fastcdp.core](core.html.md): CDP client, Page, accessibility tree, network/console/WS capture, and Rungs
 - [fastcdp.ext](ext.html.md): Drive the user's everyday Chrome through a companion extension
